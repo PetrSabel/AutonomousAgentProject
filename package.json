@@ -4,11 +4,13 @@
   "description": "The \"Autonomous Software Agent\" project ",
   "main": "main.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node main.ts"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "socket.io-client": "^4.7.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.2"
   }
