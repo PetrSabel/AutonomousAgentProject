@@ -10,14 +10,18 @@ var socket = io( config.host, {
     // }
 });
 
+
+// Initial listeners (executed only at beginning)
 socket.on("connect", () => {
-    console.log( "socket connect", socket.id ); // x8WIv7-mJelg7on_ALbxc
+    console.log( "socket connect", socket.id );
 });
 
 socket.on("disconnect", () => {
-    console.log( "socket disconnect", socket.id ); // x8WIv7-mJelg7on_ALbxc
+    console.log( "socket disconnect", socket.id );
 });
 
+
+// Obtain current information
 socket.on("you", ({id, name, x, y, score}) => {
     console.log("you", {id, name, x, y, score})
 });
@@ -25,6 +29,13 @@ socket.on("you", ({id, name, x, y, score}) => {
 socket.on("agents sensing", (data) => {
     console.log("agents sensing", data)
 });
+
+socket.on("parcels sensing", (data) => {
+    console.log("parcels sensing", data)
+});
+
+// TODO: agent is notified when new parcel appears or need to monitor
+//  In second case, implement EventEmitter for that (obtain info, elaborate it and update agent)
 
 socket.on("xy", (data) => {
     console.log("xy", data)
@@ -43,7 +54,7 @@ socket.on("*", function(event,data) {
     console.log("DATA:" + data);
 });
 
-
+// Agent actions
 async function randomlyMove () {
 
     var direction_index = Math.floor(Math.random()*4)
@@ -81,7 +92,7 @@ async function randomlyMove () {
             }
         } ) ).catch( async () => {
 
-            direction_index += Math.floor(Math.random()*4); // change direction if failed going straigth
+            direction_index += Math.floor(Math.random()*4); // change direction if failed going straight
 
             console.log( 'failed move', direction, 'next move', getDirection() )
 
