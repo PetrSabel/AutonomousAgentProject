@@ -20,39 +20,34 @@ socket.on("disconnect", () => {
     console.log( "socket disconnect", socket.id );
 });
 
+// Obtain all tiles
+socket.on("map", (...data) => {
+    console.log("map", data)
+});
+
+socket.on("tile", (...data) => {
+    console.log("tile", data)
+});
+
+socket.on("not tile", (...data) => {
+    console.log("not tile", data)
+});
 
 // Obtain current information
 socket.on("you", ({id, name, x, y, score}) => {
     console.log("you", {id, name, x, y, score})
 });
 
-socket.on("agents sensing", (data) => {
-    console.log("agents sensing", data)
+// Agent is notified when see some agent
+socket.on("agents sensing", (agents) => {
+    console.log("agents sensing", agents)
 });
 
-socket.on("parcels sensing", (data) => {
-    console.log("parcels sensing", data)
+// Agent is notified when new parcel appears or reward changes
+socket.on("parcels sensing", (parcels) => {
+    console.log("parcels sensing", parcels)
 });
 
-// TODO: agent is notified when new parcel appears or need to monitor
-//  In second case, implement EventEmitter for that (obtain info, elaborate it and update agent)
-
-socket.on("xy", (data) => {
-    console.log("xy", data)
-});
-
-socket.on("map", (data) => {
-    console.log("map", data)
-});
-
-socket.on("tile", (data) => {
-    console.log("tile", data)
-});
-
-socket.on("*", function(event,data) {
-    console.log("Event:" + event);
-    console.log("DATA:" + data);
-});
 
 // Agent actions
 async function randomlyMove () {
@@ -69,7 +64,7 @@ async function randomlyMove () {
         
         let direction = [ 'up', 'right', 'down', 'left' ][ (direction_index) % 4 ]
 
-        await new Promise<void>( (success, reject) => socket.emit('move', getDirection(), async (status) =>  {
+        await new Promise<void>( (success, reject) => socket.emit('move', getDirection(), async (status: any) =>  {
             if (status) {
         
                 direction_index += [0,1,3][ Math.floor(Math.random()*3) ]; // may change direction but not going back
