@@ -10,6 +10,30 @@ var socket = io( config.host, {
     // }
 });
 
+type Tile = {
+    x: Number,
+    y: Number,
+    delivery: Boolean,
+    parcelSpawner: Boolean,
+};
+
+type Parcel = {
+    id: String,
+    x: Number,
+    y: Number,
+    carriedBy: any,
+    reward: Number,
+};
+
+class Agent {
+    map: Tile[] | null;
+
+    constructor() {
+        this.map = null;
+    }
+}
+
+let agent = new Agent();
 
 // Initial listeners (executed only at beginning)
 socket.on("connect", () => {
@@ -21,8 +45,9 @@ socket.on("disconnect", () => {
 });
 
 // Obtain all tiles
-socket.on("map", (...data) => {
+socket.on("map", (x, y, data: Tile[]) => {
     console.log("map", data)
+    agent.map = data;
 });
 
 socket.on("tile", (...data) => {
