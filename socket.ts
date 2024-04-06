@@ -1,6 +1,9 @@
-import { default as config } from "./config";
-import { io } from "socket.io-client";
-import { ICompare, PriorityQueue } from "@datastructures-js/priority-queue";
+import { default as config } from "./config"
+import { io } from "socket.io-client"
+import { ICompare, PriorityQueue } from "@datastructures-js/priority-queue"
+import { Tile, TileInfo, ParcelInfo, AgentDesciption, Direction } from "./types"
+import { Agent } from "./agent"
+import { isDelivery, isParcel } from "./goals"
 
 // IDea: use Reinforcement Learning
 
@@ -13,82 +16,8 @@ var socket = io( config.host, {
     // }
 });
 
-type TileInfo = {
-    x: number,
-    y: number,
-    delivery: boolean,
-    parcelSpawner: boolean,
-};
 
-type PassableTile = {
-    parcel: Parcel | null,
-    spawnable: boolean,
-    agent: string | null,
-    delivery: boolean,
-};
-
-type EmptyTile = null;
-
-type Tile = PassableTile | EmptyTile;
-
-type ParcelInfo = {
-    id: string,
-    x: number,
-    y: number,
-    carriedBy: any,
-    reward: number,
-};
-
-// Parcel placed on map
-type Parcel = {
-    id: string,
-    reward: number,
-};
-
-type AgentDesciption = {
-    id: string,
-    name: string,
-    x: number, 
-    y: number, 
-    score: number,
-};
-
-class Agent {
-    map: Tile[][];  // matrix[x,y] of Tiles
-    map_size: [number, number];
-
-    // Current information
-    x: number;
-    y: number;
-    score: number;
-    parcels: ParcelInfo[];
-    carry: boolean;
-
-    id: string | null;
-    name: string; // TODO: add in config possibility to choose between different agents
-    socket: any;
-
-    constructor(name: string, x: number, y: number) {
-        // Set empty map
-        this.map = new Array;
-        this.map_size = [0,0];
-        this.x = x;
-        this.y = y;
-        this.id = null;
-        this.name = name;
-        this.score = 0;
-        this.socket = null; // TODO: connect to actual socket and declare event listeners
-        this.parcels = [];
-        this.carry = false;
-    }
-}
-
-// Idea: declare agent only after receiving initial information
-let agent = new Agent('Fil', 0, 0);
-
-
-// TODO: move these declarations inside the agent
-// Initial listeners (executed only at beginning)
+// Initial listeners (executed only once)
 socket.on("connect", () => {
     console.log( "socket connect", socket.id );
 });
@@ -113,12 +42,11 @@ socket.on("map", (x, y, data: TileInfo[]) => {
         agent.map[tile.x][tile.y] = {
             parcel: null,
             spawnable: tile.parcelSpawner,
-            agent: null,
+            agentID: null,
             delivery: tile.delivery
         };
     }
     agent.map_size = [x,y];
-
 });
 
 // Obtain singular tile
@@ -133,19 +61,36 @@ socket.on("not_tile", (x: number, y: number) => {
 });
 
 
+// Idea: declare agent only after receiving initial information
+let agent = new Agent('Fil', 0, 0, socket);
+
+
+// TODO: move these declarations inside the agent
+
 // Update events
 // Agent is notified when see some agent
 // TODO: update map information
 // TODO: try to predict moves
 socket.on("agents sensing", (agents: AgentDesciption[]) => {
     // console.log("agents sensing", agents)
+    for (let a of agents) {
+        // If some other agent
+        if (a.id !== agent.id) {
+            // TODO: consider 2 cell when moving
+            let x = Math.round(a.x)
+            let y = Math.round(a.y)
+
+            agent.map[x][y]!.agentID = a.id;
+        }
+    }
+    // TODO: consider if they are moving
 });
 
 // Agent is notified when new parcel appears or reward changes
 // TODO: update information, no override
 socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
-    // console.log("parcels sensing", parcels)
     agent.parcels = parcels;
+
     for (let parcel of parcels) {
         if (!parcel.carriedBy) {
             let tile = agent.map[parcel.x][parcel.y];
@@ -157,24 +102,27 @@ socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
 
                 setTimeout(() => {
                     tile!.parcel = null
-                }, 1000*parcel.reward)
+                }, 1000 * parcel.reward) 
+                // Assume that a parcel expires after "reward" seconds
             }
-        } else {
+        } else { // If carried
             let x = Math.round(parcel.x)
             let y = Math.round(parcel.y)
+            
             try {
                 let _ = agent.map[x][y]
             } catch {
                 console.log("PARCEL ERROR", parcel)
                 console.log("CONT", agent.map, agent.map[x])
             }
+
             let tile = agent.map[x][y];
             if (tile) {
                 tile.parcel = null;
             }
 
             if (parcel.carriedBy === agent.id) {
-                agent.carry = true;
+                // agent.carry = true;
             }
         }
     }
@@ -193,12 +141,10 @@ socket.on("you", (me: AgentDesciption) => {
 
 // TODO: declare function for each of agents actions
 
-type Direction = "left" | "right" | "up" | "down";
-const DIRECTIONS = ["left", "right", "up", "down"];
+const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
 
 function number_to_direction(index: number): Direction {
-    const directions: Direction[] = [ 'up', 'right', 'down', 'left'];
-    return directions[ index % directions.length ];
+    return DIRECTIONS[ index % DIRECTIONS.length ];
 }
 
 
@@ -273,7 +219,6 @@ type State = {
 async function Astar(agent: Agent, h: ICompare<State>, goal: (tile: Tile) => boolean): Promise<Direction[]> {
     let map = agent.map;
     let plan = new Array<Direction>;
-    // console.log("MAP", map)
 
     // TODO: check if there is some known parcel
     if (map && agent.parcels.length > 0) {
@@ -300,15 +245,11 @@ async function Astar(agent: Agent, h: ICompare<State>, goal: (tile: Tile) => boo
                 console.log("HERE", x, y, map)    
             }
             let tile = map[x][y];
-            if (!tile) {
-                console.log("HERE TILE", x, y, map, tile)
-            }
-
-            // Stop when find the first parcel
+            
             console.log("TILE", tile, x, y)
-            if (tile == null) {
+            if (!tile) {
                 continue
-            } else if (goal(tile)) {
+            } else if (goal(tile)) { // Stop when find the first accepted block
                 console.log("Want to arrive to", x, y, tile, "from", agent.x, agent.y)
                 plan = moves;
                 break;
@@ -333,32 +274,26 @@ async function Astar(agent: Agent, h: ICompare<State>, goal: (tile: Tile) => boo
     return plan;
 }
 
-const compareParcels: ICompare<State> = (a: State, b: State) => {
+
+// Tile heuristics
+const nearestTiles: ICompare<State> = (a: State, b: State) => {
+    let dist_a = a.moves.length 
+    let dist_b = b.moves.length 
+    
+    return dist_a < dist_b ? -1 : 1;
+};
+
+const airDistance: ICompare<State> = (a: State, b: State) => {
     let dist_a = Math.abs(agent.x - a.x) + Math.abs(agent.y - a.y)
     let dist_b = Math.abs(agent.x - b.x) + Math.abs(agent.y - b.y)
     
     return dist_a < dist_b ? -1 : 1;
 };
   
-const isParcel = (tile: Tile) => {
-    if (tile) {
-        return (tile.parcel != null)
-    } else {
-        return false;
-    }
-}
-// TODO: put info about other agents on map to skip them
-// TODO; make something when my move is blocked
-// TODO: when new parcel appears closer than goal, change the goal
-const isDelivery = (tile: Tile) => {
-    if (tile) {
-        return tile.delivery
-    } else {
-        return false;
-    }
-}
 
-async function randomlyMove () {
+
+// Main loop
+async function main() {
 
     var direction_index = Math.floor(Math.random()*4)
     let plan: Direction[] = [];
@@ -369,13 +304,7 @@ async function randomlyMove () {
             let direction: Direction = plan[0]
 
             // Try the move
-            await new Promise<void>( (success, reject) => socket.emit('move', direction, async (status: boolean) =>  {
-                if (status) {
-                    success();
-                } else {
-                    reject();
-                }
-            } ) )
+            await agent.move(direction)
             // Add success callback
             .then( async () => { 
                 console.log("Plan step done")
@@ -383,21 +312,11 @@ async function randomlyMove () {
 
                 if (agent.carry && plan.length < 1) {
                         // TODO: check this socket
-                        socket.emit( 'putdown', (parcel: any) => {
-                            console.log("Putted", parcel)
-                            if (parcel) {
-                                agent.carry = false;
-                            }
-                        } );
-                        agent.carry = false;
-                    }
+                    await agent.putdown();
+                    agent.carry = [];
+                }
 
-                socket.emit( 'pickup', (parcel: Parcel | undefined) => {
-                    console.log("Picked up", parcel)
-                    if (parcel) {
-                        agent.carry = true;
-                    }
-                } );
+                agent.pickup();
 
             }) 
             // Add reject callback
@@ -410,13 +329,7 @@ async function randomlyMove () {
             let direction = number_to_direction(direction_index)
 
             // Try the move
-            await new Promise<void>( (success, reject) => socket.emit('move', number_to_direction(direction_index), async (status: boolean) =>  {
-                if (status) {
-                    success();
-                } else {
-                    reject();
-                }
-            } ) )
+            await agent.move(direction)
             // Add success callback
             .then( async () => { 
                 direction_index += [0,1,3][ Math.floor(Math.random()*3) ]; // may change direction but not going back
@@ -446,8 +359,8 @@ async function randomlyMove () {
         // Create a new plan
         if (plan.length < 1) {
             console.log("\nPlanning")
-            let goal = agent.carry? isDelivery : isParcel;
-            await Astar(agent, compareParcels, goal).then(async (new_plan) => {
+            let goal = (agent.carry.length > 0)? isDelivery : isParcel;
+            await Astar(agent, nearestTiles, goal).then(async (new_plan) => {
                 plan = new_plan;
                 console.log("---------------------------------")
                 console.log("Current goal is", agent.carry? "delivery" : "parcel")
@@ -457,11 +370,11 @@ async function randomlyMove () {
         }
 
         // TODO: if stucked do not block the program in infinite loop
-        await new Promise(res => setTimeout(res, 1000));
+        await new Promise(res => setTimeout(res, 2000));
 
     }
 }
 
-randomlyMove()
+main()
 
 // Note: name "god" is quite powerful
