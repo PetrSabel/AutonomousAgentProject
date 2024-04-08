@@ -9,7 +9,7 @@ export class Agent {
     x: number;
     y: number;
     score: number;
-    parcels: ParcelInfo[]; //TODO: split in 2 (real and expected)
+    parcels: Map<string, ParcelInfo>; //TODO: split in 2 (real and expected)
     // TODO: store agent to predict moves
     carry: Parcel[];
     carrying_reward: number; // Indicates how much reward can obtain now (if deliver)
@@ -31,7 +31,7 @@ export class Agent {
         this.name = name;
         this.score = 0;
         this.socket = socket; // TODO: connect to actual socket and declare event listeners
-        this.parcels = [];
+        this.parcels = new Map();
         this.carry = [];
         this.carrying_reward = 0;
 

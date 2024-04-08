@@ -1,15 +1,16 @@
-import { default as config } from "./config"
 import { io } from "socket.io-client"
 import { ICompare, PriorityQueue } from "@datastructures-js/priority-queue"
 import { Tile, TileInfo, ParcelInfo, AgentDesciption, Direction } from "./types"
 import { Agent } from "./agent"
 import { isDelivery, isParcel } from "./goals"
+import { nearestTiles } from "./heuristics"
+import { host, token } from "./main"
 
 // IDea: use Reinforcement Learning
 
-var socket = io( config.host, {
+var socket = io( host, {
     extraHeaders: {
-        'x-token': config.token
+        'x-token': token
     },
     // query: {
     //     name: "scripted",
@@ -55,6 +56,12 @@ socket.on("tile", (x: number, y: number, delivery: boolean, parcelSpawner: boole
     console.log("tile", data)
 });
 
+let map_config: any;
+socket.on('config', (data) => {
+    map_config = data
+    console.log("Configuration: ", data)
+})
+
 // Obtain description of unaccessible tiles
 socket.on("not_tile", (x: number, y: number) => {
     console.log("not tile", x, y)
@@ -89,7 +96,20 @@ socket.on("agents sensing", (agents: AgentDesciption[]) => {
 // Agent is notified when new parcel appears or reward changes
 // TODO: update information, no override
 socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
-    agent.parcels = parcels;
+    // Remove obsolete parcels from beliefs
+    for (let id of agent.parcels.keys()) {
+        if (parcels.find(p => p.id === id) === undefined) {
+            if (agent.parcels.get(id)!.carriedBy.id === agent.id) {
+                // TODO: Remove from agent.carry
+            }
+            agent.parcels.delete(id);
+        }
+    }
+
+    // Update belief
+    for (let parcel of parcels) {
+        agent.parcels.set(parcel.id, parcel)
+    }
 
     for (let parcel of parcels) {
         if (!parcel.carriedBy) {
@@ -152,65 +172,8 @@ function number_to_direction(index: number): Direction {
 
 // Try to plan something
 // TODO: attach planning to parcel sense, add variable to indicate whether process is still going
-async function toNearestParcel(agent: Agent): Promise<Direction[]> {
-    let map = agent.map;
-    let result = new Array<Direction>;
 
-    if (map && agent.parcels.length > 0) {
-        // Find the nearest parcel
-        let nearestParcel = agent.parcels[0];
-        let minDist = Math.abs(agent.x - nearestParcel.x) + Math.abs(agent.y - nearestParcel.y)
-        for (let parcel of agent.parcels) {
-            let temp = Math.abs(agent.x - parcel.x) + Math.abs(agent.y - parcel.y);
-            if (temp < minDist) {
-                nearestParcel = parcel;
-                minDist = temp;
-            }
-        }
-
-        console.log("Nearest: ", nearestParcel)
-
-        // Try to reach it
-        let q: Array<readonly [x:number, y:number, moves:Direction[]]> = [[agent.x, agent.y, []]];
-        let visited: Array<[x:number, y:number]> = [];
-        while (q.length > 0) {
-            let curr = q.shift()!;
-            let [x, y, moves] = curr;
-            
-            if (visited.some((el) => el[0] === x && el[1] === y)) {
-                continue;
-            } else {
-                visited.push([x,y]);
-            }
-            
-            let tile = map[x][y];
-            if (tile?.parcel) {
-                result = moves;
-                break;
-            } else if (tile === null) {
-                continue;
-            } else {
-                if (x > 0) {
-                    q.push([x-1, y, [...moves, 'left']]);
-                }
-                if (x < agent.map_size[0] - 1) {
-                    q.push([x+1, y, [...moves, 'right']]);
-                }
-
-                if (y > 0) {
-                    q.push([x, y-1, [...moves, 'down']]);
-                }
-                if (y < agent.map_size[1] - 1) {
-                    q.push([x, y+1, [...moves, 'up']]);
-                }
-            }
-        }
-    }
-
-    return result;
-}
-
-type State = {
+export type State = {
     x: number, 
     y: number,
     moves: Direction[],
@@ -221,7 +184,7 @@ async function Astar(agent: Agent, h: ICompare<State>, goal: (tile: Tile) => boo
     let plan = new Array<Direction>;
 
     // TODO: check if there is some known parcel
-    if (map && agent.parcels.length > 0) {
+    if (map && agent.parcels.size > 0) {
 
         // Try to reach it
         let q: PriorityQueue<State> = new PriorityQueue(h);
@@ -274,22 +237,13 @@ async function Astar(agent: Agent, h: ICompare<State>, goal: (tile: Tile) => boo
     return plan;
 }
 
-
-// Tile heuristics
-const nearestTiles: ICompare<State> = (a: State, b: State) => {
-    let dist_a = a.moves.length 
-    let dist_b = b.moves.length 
-    
-    return dist_a < dist_b ? -1 : 1;
-};
-
-const airDistance: ICompare<State> = (a: State, b: State) => {
+// Requires agent information  
+export const airDistance: ICompare<State> = (a: State, b: State) => {
     let dist_a = Math.abs(agent.x - a.x) + Math.abs(agent.y - a.y)
     let dist_b = Math.abs(agent.x - b.x) + Math.abs(agent.y - b.y)
     
     return dist_a < dist_b ? -1 : 1;
 };
-  
 
 
 // Main loop
