@@ -1,5 +1,9 @@
-import { Tile, ParcelInfo, Parcel, Direction } from "./types"
+import { isDelivery, isParcel } from "./goals";
+import { nearestTiles } from "./heuristics";
+import { Astar } from "./socket";
+import { Tile, ParcelInfo, Parcel, Direction, Desire } from "./types"
 
+// TODO: declare function for each of agents actions
 export class Agent {
     map: Tile[][];  // matrix[x,y] of Tiles
     // map with scores, assign a score per tile
@@ -21,7 +25,13 @@ export class Agent {
     time_to_move: number; // The time needed to execute a move
     time_to_plan: number; // Expected time to plan next move (average)
 
-    constructor(name: string, x: number, y: number, socket: any) {
+    // Configuration of the level
+    config: any;
+
+    // BDI
+    desires: Desire[]
+
+    constructor(name: string, x: number, y: number, socket: any, config: any) {
         // Set empty map
         this.map = new Array;
         this.map_size = [0,0];
@@ -34,9 +44,12 @@ export class Agent {
         this.parcels = new Map();
         this.carry = [];
         this.carrying_reward = 0;
+        this.config = config;
 
         this.time_to_move = 1000; // ms
         this.time_to_plan = 1000; // ms
+
+        this.desires = []
     }
 
     async pickup() {
@@ -65,6 +78,31 @@ export class Agent {
                 reject();
             }
         } ) );
+    }
+
+    getOptions(): Promise<Direction[]>[] {
+        let res: Promise<Direction[]>[] = []
+        for (let desire of this.desires) {
+            // TODO: consider that there are many more goals
+            let goal = desire.action === "pickup" ? isParcel : isDelivery
+            let option = Astar(this.map, this.x, this.y, nearestTiles, goal)
+
+            res.push(option)
+        }
+
+        return res;
+    }
+
+    filterOptions(options: Promise<Direction[]>[]) {
+        // TODO: filter options based on some criteria
+        return options.filter(async option => {
+            (await option).length > 0
+        })
+    }
+
+    // TODO
+    mergeIntent() {
+
     }
 }
 // BDI => Beliefs, Desires, Intentions

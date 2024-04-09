@@ -1,5 +1,7 @@
 type PassableTile = {
-    parcel: Parcel | null,
+    // Specify id of the Parcel if present
+    //      The actual Parcel object should be extracted from agent.parcels map (if exists)
+    parcel: string | null,
     spawnable: boolean,
     agentID: string | null,
     delivery: boolean,
@@ -9,6 +11,7 @@ type EmptyTile = null;
 
 type Tile = PassableTile | EmptyTile;
 
+// TODO: implement classes and not only types
 
 // Information from sockets
 type ParcelInfo = {
@@ -43,5 +46,28 @@ type Parcel = {
 };
 
 type Direction = "left" | "right" | "up" | "down";
+type Action = Direction | "pickup" | "putdown";
 
-export { Direction, TileInfo, PassableTile, EmptyTile, Tile, ParcelInfo, Parcel, AgentDesciption };
+type Desire = {
+    description: string,
+    // Specify the final coordinates
+    x: number,
+    y: number,
+    // Action we want to do at the given coordinates
+    action: Action,
+    childDesires: Desire[]
+}
+
+// Represent the current executing plan
+type Intention = {
+    plan: Action[],
+    // Specify to which desire is associated
+    desire: Desire,
+}
+
+
+export { 
+    Direction, TileInfo, PassableTile, EmptyTile, Tile,
+    ParcelInfo, Parcel, AgentDesciption,
+    Desire, Intention, Action
+};

@@ -56,7 +56,7 @@ socket.on("tile", (x: number, y: number, delivery: boolean, parcelSpawner: boole
     console.log("tile", data)
 });
 
-let map_config: any;
+var map_config: any;
 socket.on('config', (data) => {
     map_config = data
     console.log("Configuration: ", data)
@@ -69,7 +69,7 @@ socket.on("not_tile", (x: number, y: number) => {
 
 
 // Idea: declare agent only after receiving initial information
-let agent = new Agent('Fil', 0, 0, socket);
+let agent = new Agent('Fil', 0, 0, socket, map_config);
 
 
 // TODO: move these declarations inside the agent
@@ -97,7 +97,11 @@ socket.on("agents sensing", (agents: AgentDesciption[]) => {
 // TODO: update information, no override
 socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
     // Remove obsolete parcels from beliefs
+    // TODO: consider only parcels that should be present in the agent view
+    // Now it removes also parcels outside of the view
+
     for (let id of agent.parcels.keys()) {
+        // TODO: add if the parcel is visible
         if (parcels.find(p => p.id === id) === undefined) {
             if (agent.parcels.get(id)!.carriedBy.id === agent.id) {
                 // TODO: Remove from agent.carry
@@ -115,10 +119,7 @@ socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
         if (!parcel.carriedBy) {
             let tile = agent.map[parcel.x][parcel.y];
             if (tile) {
-                tile.parcel = {
-                    id: parcel.id,
-                    reward: parcel.reward,
-                }
+                tile.parcel = parcel.id 
 
                 setTimeout(() => {
                     tile!.parcel = null
@@ -159,8 +160,6 @@ socket.on("you", (me: AgentDesciption) => {
 });
 
 
-// TODO: declare function for each of agents actions
-
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
 
 function number_to_direction(index: number): Direction {
@@ -179,16 +178,15 @@ export type State = {
     moves: Direction[],
 };
 
-async function Astar(agent: Agent, h: ICompare<State>, goal: (tile: Tile) => boolean): Promise<Direction[]> {
-    let map = agent.map;
+export async function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompare<State>, goal: (tile: Tile) => boolean): Promise<Direction[]> {
     let plan = new Array<Direction>;
 
     // TODO: check if there is some known parcel
-    if (map && agent.parcels.size > 0) {
+    if (map) {
 
         // Try to reach it
         let q: PriorityQueue<State> = new PriorityQueue(h);
-        q.enqueue({x: Math.round(agent.x), y: Math.round(agent.y), moves: []});
+        q.enqueue({x: Math.round(agent_x), y: Math.round(agent_y), moves: []});
         let visited: Array<[x:number, y:number]> = [];
 
         while (!q.isEmpty()) {
@@ -213,7 +211,7 @@ async function Astar(agent: Agent, h: ICompare<State>, goal: (tile: Tile) => boo
             if (!tile) {
                 continue
             } else if (goal(tile)) { // Stop when find the first accepted block
-                console.log("Want to arrive to", x, y, tile, "from", agent.x, agent.y)
+                console.log("Want to arrive to", x, y, tile, "from", agent_x, agent_y)
                 plan = moves;
                 break;
             } else {
@@ -314,7 +312,7 @@ async function main() {
         if (plan.length < 1) {
             console.log("\nPlanning")
             let goal = (agent.carry.length > 0)? isDelivery : isParcel;
-            await Astar(agent, nearestTiles, goal).then(async (new_plan) => {
+            await Astar(agent.map, agent.x, agent.y, nearestTiles, goal).then(async (new_plan) => {
                 plan = new_plan;
                 console.log("---------------------------------")
                 console.log("Current goal is", agent.carry? "delivery" : "parcel")
