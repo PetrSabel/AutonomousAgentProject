@@ -1,23 +1,50 @@
-import { Desire, Plan } from "./types";
+import { Action, Desire, Plan } from "./types";
 import { Agent } from "./agent"
+import { Astar } from "./socket";
+import { generate_shortest_heuristic, nearestTiles } from "./heuristics";
+import { isDelivery, isParcel } from "./goals";
 
 // TODO: change agent with requested information
 function plan(agent: Agent, desire: Desire): [Plan, number] {
+    let plan: Action[] = []
+    let score: number = 0
+
     switch (desire.description) {
         case "deliver":
             // Find deliver tiles
             // Route to the nearest one
+            plan = Astar(agent.map, agent.x, agent.y, nearestTiles, isDelivery);
+
+            let parcels = agent.carry
+            // Sum all carried rewards
+            const reward = parcels.map(p => p.reward).reduce((acc, num) => acc + num, 0)
+            const loss = parcels.map(p => Math.max(0, p.reward - plan.length)).reduce((acc, num) => acc + num, 0)
+            // TODO: maybe place division
+            // score = reward - loss 
+            score = 20
+            
+            plan.push("putdown")
+
             // Return obtained plan
-            return [new Array, 3]
+            return [plan, score]
             
         case "explore":
             // Decide where to move or Random move
-            return [new Array, 0]
+            plan = ['down'] // TODO: random move
+            return [plan, 0]
             
         case "pickup":
             // Find route to parcel
+            let parcel = desire.parcel
+            // TODO: change goal function to exactPosition
+            plan = Astar(agent.map, agent.x, agent.y, generate_shortest_heuristic(parcel.x, parcel.y), isParcel);
+            
+            // TODO: more sophisticate score
+            score = parcel.reward - plan.length
+
+            plan.push("pickup")
             // Return plan
-            return [new Array, 3]
+            return [plan, score]
 
         default:
             throw new Error("Desire not implemented")
@@ -25,7 +52,7 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
 }
 
 
-class Intention {
+export class Intention {
     // The associated desire
     desire: Desire 
     currentPlan: Plan
@@ -41,56 +68,10 @@ class Intention {
     }
     // TODO: decide how we suddivide information between Desire, Intention and Plan
 
-    start(agent: Agent) {
+    start(): Action[] | undefined {
         if (!this.executing) {
             this.executing = true
-            this.execute(agent)
-        }
-    }
-
-    async execute(agent: Agent) {
-        while (this.executing && this.currentPlan.length > 0) {
-            let action = this.currentPlan.shift()!;
-            switch (action) {
-                case "pickup":
-                    await agent.pickup();
-                    break;
-
-                case "putdown":
-                    await agent.putdown();
-                    break;
-
-                case "left":
-                    await agent.move("left")
-                    .catch( err => {
-                        this.replan(agent)
-                    })
-                    break;
-
-                case "right":
-                    await agent.move("right")
-                    .catch( err => {
-                        this.replan(agent)
-                    })
-                    break;
-
-                case "up":
-                    await agent.move("up")
-                    .catch( err => {
-                        this.replan(agent)
-                    })
-                    break;
-
-                case "down":
-                    await agent.move("down")
-                    .catch( err => {
-                        this.replan(agent)
-                    })
-                    break;
-
-                default:
-                    throw new Error("Action not recognized")
-            }
+            return this.currentPlan
         }
     }
 
@@ -107,11 +88,12 @@ class Intention {
 
 // Desire possibilities: 'pick_up', 'explore', 'deliver'
 //      pick_up => Intention: go + Intention: pickup
-//      expore => Intention: go (but where? randomly?)
+//      expore => Intention: random_go (but where? randomly?)
 //      deliver => Intention: go + Intention: putdown
 // new, remove
 
 // Intention: go, pickup, putdown
+//      random_go
 //      go => plan + execute
 //      pickup => emit pickup
 //      putdown => emit putdown

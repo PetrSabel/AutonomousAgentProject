@@ -5,6 +5,7 @@ import { Agent } from "./agent"
 import { isDelivery, isParcel } from "./goals"
 import { nearestTiles } from "./heuristics"
 import { host, token } from "./main"
+import { Intention } from "./intention"
 
 // IDea: use Reinforcement Learning
 
@@ -102,11 +103,21 @@ socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
 
     for (let id of agent.parcels.keys()) {
         // TODO: add if the parcel is visible
-        if (parcels.find(p => p.id === id) === undefined) {
-            if (agent.parcels.get(id)!.carriedBy.id === agent.id) {
+        if (parcels.find(p => p.id === id) !== undefined) {
+            if (agent.parcels.get(id)!.carriedBy && agent.parcels.get(id)!.carriedBy.id === agent.id) {
                 // TODO: Remove from agent.carry
             }
             agent.parcels.delete(id);
+        }
+    }
+
+    for (const parcel of parcels) {
+        // TODO: check if already present
+        if (!agent.parcels.has(parcel.id)) {
+            agent.desires.push({
+                description: "pickup",
+                parcel: parcel
+            })
         }
     }
 
@@ -178,7 +189,7 @@ export type State = {
     moves: Direction[],
 };
 
-export async function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompare<State>, goal: (tile: Tile) => boolean): Promise<Direction[]> {
+export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompare<State>, goal: (tile: Tile) => boolean): Direction[] {
     let plan = new Array<Direction>;
 
     // TODO: check if there is some known parcel
@@ -207,7 +218,7 @@ export async function Astar(map: Tile[][], agent_x: number, agent_y: number, h: 
             }
             let tile = map[x][y];
             
-            console.log("TILE", tile, x, y)
+            // console.log("TILE", tile, x, y)
             if (!tile) {
                 continue
             } else if (goal(tile)) { // Stop when find the first accepted block
@@ -312,13 +323,14 @@ async function main() {
         if (plan.length < 1) {
             console.log("\nPlanning")
             let goal = (agent.carry.length > 0)? isDelivery : isParcel;
-            await Astar(agent.map, agent.x, agent.y, nearestTiles, goal).then(async (new_plan) => {
-                plan = new_plan;
-                console.log("---------------------------------")
-                console.log("Current goal is", agent.carry? "delivery" : "parcel")
-                console.log("Plan: ", plan)
-                console.log("-------------------------------")
-            });
+            let new_plan = Astar(agent.map, agent.x, agent.y, nearestTiles, goal)
+
+            plan = new_plan;
+            console.log("---------------------------------")
+            console.log("Current goal is", agent.carry? "delivery" : "parcel")
+            console.log("Plan: ", plan)
+            console.log("-------------------------------")
+        
         }
 
         // TODO: if stucked do not block the program in infinite loop
@@ -327,6 +339,42 @@ async function main() {
     }
 }
 
-main()
+// main()
+
+async function loop() {
+
+    while (true) {
+        try {
+            let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1)
+            let options = await agent.getOptions()
+
+            console.log("\nOptions are {}", options)
+            options = agent.filterOptions(options)
+            console.log("\n\nFiltere are {}", options)
+
+            await new Promise(res => setTimeout(res, 1000));
+
+            for (let option of options) {
+                queue.push(option)
+            }
+            let first = queue.pop()
+            let plan = first.start()
+
+            console.log("\n\nEXECUTING", first, "\n\n\n")
+            if (plan)
+                await agent.executePlan(plan)
+                .catch((err) => {
+                    console.log("Plan ", plan, " blocked because ", err)
+                })
+
+            await new Promise(res => setTimeout(res, 1000));
+        } catch(e) {
+            console.error("Some error", e)
+            await new Promise(res => setTimeout(res, 2000));
+        }
+    }
+}
+
+loop()
 
 // Note: name "god" is quite powerful

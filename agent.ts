@@ -1,7 +1,5 @@
-import { isDelivery, isParcel } from "./goals";
-import { nearestTiles } from "./heuristics";
-import { Astar } from "./socket";
-import { Tile, ParcelInfo, Parcel, Direction, Desire } from "./types"
+import { Intention } from "./intention";
+import { Tile, ParcelInfo, Parcel, Direction, Desire, Action } from "./types"
 
 // TODO: declare function for each of agents actions
 export class Agent {
@@ -49,7 +47,7 @@ export class Agent {
         this.time_to_move = 1000; // ms
         this.time_to_plan = 1000; // ms
 
-        this.desires = []
+        this.desires = [{description: "explore"}, {description: "deliver"}]
     }
 
     async pickup() {
@@ -80,30 +78,35 @@ export class Agent {
         } ) );
     }
 
-    getOptions(): Promise<Direction[]>[] {
-        let res: Promise<Direction[]>[] = []
+    async getOptions(): Promise<Intention[]> {
+        let res: Array<Intention> = new Array;
         for (let desire of this.desires) {
-            // TODO: consider that there are many more goals
-            let goal = desire.description === "pickup" ? isParcel : isDelivery
-            let option = Astar(this.map, this.x, this.y, nearestTiles, goal)
+            let intention = new Intention(this, desire)
 
-            res.push(option)
+            res.push(intention)
         }
 
         return res;
     }
 
-    filterOptions(options: Promise<Direction[]>[]) {
+    filterOptions(options: Intention[]) {
         // TODO: filter options based on some criteria
-        return options.filter(async option => {
-            (await option).length > 0
-        })
+        return options.filter(option => option.cost >= 0)
     }
 
-    // TODO
-    mergeIntent() {
 
+    async executePlan(plan: Action[]) {
+        for (let action of plan) {
+            if (action === "pickup") {
+                await this.pickup()
+            } else if (action === "putdown") {
+                await this.putdown()
+            } else {
+                await this.move(action)
+            }
+        }
     }
+
 }
 // BDI => Beliefs, Desires, Intentions
 
