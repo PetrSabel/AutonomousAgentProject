@@ -17,11 +17,12 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
 
             let parcels = agent.carry
             // Sum all carried rewards
-            const reward = parcels.map(p => p.reward).reduce((acc, num) => acc + num, 0)
+            const reward = parcels.map(p => p.reward? p.reward : 0).reduce((acc, num) => acc + num, 0)
             const loss = parcels.map(p => Math.max(0, p.reward - plan.length)).reduce((acc, num) => acc + num, 0)
             // TODO: maybe place division
-            // score = reward - loss 
-            score = 20
+            score = reward //- loss 
+            //score = 20
+            console.log("DELIVERYCOST ", score, agent.carry)
             
             plan.push("putdown")
 
@@ -30,8 +31,8 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
             
         case "explore":
             // Decide where to move or Random move
-            plan = ['down'] // TODO: random move
-            return [plan, 0]
+            plan = ['left'] // TODO: random move
+            return [plan, 0.1]
             
         case "pickup":
             // Find route to parcel

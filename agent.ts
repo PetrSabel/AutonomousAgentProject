@@ -51,21 +51,24 @@ export class Agent {
     }
 
     async pickup() {
-        this.socket.emit( 'pickup', (parcel: Parcel | undefined) => {
-            console.log("Picked up", parcel)
-            if (parcel) {
+        this.socket.emit( 'pickup', (parcels: Parcel[]) => {
+            console.log("Picked up", parcels)
+            for (let parcel of parcels) {
                 this.carry.push(parcel);
             }
         } );
     }
 
     async putdown() {
-        this.socket.emit( 'putdown', (parcel: any) => {
+        for (const parcel of this.carry) {
+            this.parcels.delete(parcel.id)
+        }
+        await this.socket.emit( 'putdown', (parcel: any) => {
             console.log("Putted", parcel)
-            if (parcel) {
-                this.carry = [];
-            }
+            this.carry = [];
         } );
+        this.carry = new Array
+        
     }
 
     async move(direction: Direction) {
@@ -79,6 +82,14 @@ export class Agent {
     }
 
     async getOptions(): Promise<Intention[]> {
+        this.desires = [{description: "explore"}, {description: "deliver"}]
+        for(let parcel of this.parcels.values()) {
+            this.desires.push({
+                description:"pickup", 
+                parcel: parcel
+            })
+        }
+
         let res: Array<Intention> = new Array;
         for (let desire of this.desires) {
             let intention = new Intention(this, desire)

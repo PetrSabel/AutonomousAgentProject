@@ -103,11 +103,12 @@ socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
 
     for (let id of agent.parcels.keys()) {
         // TODO: add if the parcel is visible
-        if (parcels.find(p => p.id === id) !== undefined) {
-            if (agent.parcels.get(id)!.carriedBy && agent.parcels.get(id)!.carriedBy.id === agent.id) {
+        let parcel = parcels.find(p => p.id === id)
+        if (parcel !== undefined) {
+            if (parcel.carriedBy) {
                 // TODO: Remove from agent.carry
+                agent.parcels.delete(id)
             }
-            agent.parcels.delete(id);
         }
     }
 
@@ -123,7 +124,8 @@ socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
 
     // Update belief
     for (let parcel of parcels) {
-        agent.parcels.set(parcel.id, parcel)
+        if (!parcel.carriedBy)
+            agent.parcels.set(parcel.id, parcel)
     }
 
     for (let parcel of parcels) {
@@ -348,14 +350,16 @@ async function loop() {
             let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1)
             let options = await agent.getOptions()
 
-            console.log("\nOptions are {}", options)
+            //console.log("\nOptions are {}", options)
             options = agent.filterOptions(options)
-            console.log("\n\nFiltere are {}", options)
+            //console.log("\n\nFiltere are {}", options)
 
             await new Promise(res => setTimeout(res, 1000));
 
             for (let option of options) {
                 queue.push(option)
+                if (option.desire.description == "deliver") 
+                    console.log("DELIVER COST = ", option.cost)
             }
             let first = queue.pop()
             let plan = first.start()
