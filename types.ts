@@ -49,25 +49,19 @@ type Direction = "left" | "right" | "up" | "down";
 type Action = Direction | "pickup" | "putdown";
 
 type Desire = {
-    description: string,
-    // Specify the final coordinates
-    x: number,
-    y: number,
-    // Action we want to do at the given coordinates
-    action: Action,
-    childDesires: Desire[]
+    // Explore: agent will to find new parcels
+    // Deliver: agent will to deliver carried parcels
+    description: "explore" | "deliver",
+} | {
+    // Pickup: agent will to pickup a particular parcel, created when the agent see new parcel
+    description: "pickup",
+    parcel: ParcelInfo,
 }
 
-// Represent the current executing plan
-type Intention = {
-    plan: Action[],
-    // Specify to which desire is associated
-    desire: Desire,
-}
-
+type Plan = Action[];
 
 export { 
     Direction, TileInfo, PassableTile, EmptyTile, Tile,
     ParcelInfo, Parcel, AgentDesciption,
-    Desire, Intention, Action
+    Desire, Action, Plan
 };

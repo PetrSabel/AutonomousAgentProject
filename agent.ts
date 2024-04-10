@@ -84,7 +84,7 @@ export class Agent {
         let res: Promise<Direction[]>[] = []
         for (let desire of this.desires) {
             // TODO: consider that there are many more goals
-            let goal = desire.action === "pickup" ? isParcel : isDelivery
+            let goal = desire.description === "pickup" ? isParcel : isDelivery
             let option = Astar(this.map, this.x, this.y, nearestTiles, goal)
 
             res.push(option)
