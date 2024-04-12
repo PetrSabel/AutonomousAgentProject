@@ -1,6 +1,6 @@
 import { Action, Desire, Plan } from "./types";
 import { Agent } from "./agent"
-import { Astar } from "./socket";
+import { Astar, number_to_direction } from "./socket";
 import { generate_shortest_heuristic, nearestTiles } from "./heuristics";
 import { isDelivery, isParcel } from "./goals";
 
@@ -8,42 +8,56 @@ import { isDelivery, isParcel } from "./goals";
 function plan(agent: Agent, desire: Desire): [Plan, number] {
     let plan: Action[] = []
     let score: number = 0
+    let new_plan: Action[] | undefined = undefined;
 
     switch (desire.description) {
         case "deliver":
             // Find deliver tiles
             // Route to the nearest one
-            plan = Astar(agent.map, agent.x, agent.y, nearestTiles, isDelivery);
+            new_plan = Astar(agent.map, agent.x, agent.y, nearestTiles, isDelivery);
 
-            let parcels = agent.carry
-            // Sum all carried rewards
-            const reward = parcels.map(p => p.reward? p.reward : 0).reduce((acc, num) => acc + num, 0)
-            const loss = parcels.map(p => Math.max(0, p.reward - plan.length)).reduce((acc, num) => acc + num, 0)
-            // TODO: maybe place division
-            score = reward //- loss 
-            //score = 20
-            console.log("DELIVERYCOST ", score, agent.carry)
             
-            plan.push("putdown")
+            if (new_plan) {
+                plan = new_plan
+                plan.push("putdown")
+
+                let parcels = agent.carry
+                // Sum all carried rewards
+                const reward = parcels.map(p => p.reward? p.reward : 0).reduce((acc, num) => acc + num, 0)
+                const loss = parcels.map(p => Math.max(0, p.reward - plan.length)).reduce((acc, num) => acc + num, 0)
+                // TODO: maybe place division
+                score = reward - loss 
+                //score = 20
+                console.log("DELIVERYCOST ", score, reward, loss)
+            
+            } else {
+                score = 0
+            }
 
             // Return obtained plan
             return [plan, score]
             
         case "explore":
             // Decide where to move or Random move
-            plan = ['left'] // TODO: random move
+            plan = [number_to_direction(Math.floor(Math.random()*4))]
             return [plan, 0.1]
             
         case "pickup":
             // Find route to parcel
             let parcel = desire.parcel
             // TODO: change goal function to exactPosition
-            plan = Astar(agent.map, agent.x, agent.y, generate_shortest_heuristic(parcel.x, parcel.y), isParcel);
+            new_plan = Astar(agent.map, agent.x, agent.y, generate_shortest_heuristic(parcel.x, parcel.y), isParcel);
             
             // TODO: more sophisticate score
-            score = parcel.reward - plan.length
-
-            plan.push("pickup")
+            
+            if (new_plan) {
+                score = parcel.reward - plan.length
+                plan = new_plan
+                plan.push("pickup")
+            } else {
+                score = 0
+            }
+            
             // Return plan
             return [plan, score]
 

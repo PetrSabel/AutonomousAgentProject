@@ -46,7 +46,8 @@ type Parcel = {
 };
 
 type Direction = "left" | "right" | "up" | "down";
-type Action = Direction | "pickup" | "putdown";
+// "wait" refers to the situation when the other agent is blocking the plan
+type Action = Direction | "pickup" | "putdown" | "wait";
 
 type Desire = {
     // Explore: agent will to find new parcels

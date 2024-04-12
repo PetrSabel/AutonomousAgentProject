@@ -108,12 +108,22 @@ export class Agent {
 
     async executePlan(plan: Action[]) {
         for (let action of plan) {
-            if (action === "pickup") {
-                await this.pickup()
-            } else if (action === "putdown") {
-                await this.putdown()
-            } else {
-                await this.move(action)
+            switch (action) {
+                case "pickup":
+                    await this.pickup()
+                    break;
+
+                case "putdown":
+                    await this.putdown()
+                    break;
+                
+                case "wait":
+                    // TODO: decide what to do
+                    break;
+            
+                default:
+                    await this.move(action)
+                    break;
             }
         }
     }

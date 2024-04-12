@@ -1,6 +1,6 @@
 import { io } from "socket.io-client"
 import { ICompare, PriorityQueue } from "@datastructures-js/priority-queue"
-import { Tile, TileInfo, ParcelInfo, AgentDesciption, Direction } from "./types"
+import { Tile, TileInfo, ParcelInfo, AgentDesciption, Direction, Action } from "./types"
 import { Agent } from "./agent"
 import { isDelivery, isParcel } from "./goals"
 import { nearestTiles } from "./heuristics"
@@ -175,7 +175,7 @@ socket.on("you", (me: AgentDesciption) => {
 
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
 
-function number_to_direction(index: number): Direction {
+export function number_to_direction(index: number): Direction {
     return DIRECTIONS[ index % DIRECTIONS.length ];
 }
 
@@ -188,11 +188,12 @@ function number_to_direction(index: number): Direction {
 export type State = {
     x: number, 
     y: number,
-    moves: Direction[],
+    moves: Action[],
 };
 
-export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompare<State>, goal: (tile: Tile) => boolean): Direction[] {
-    let plan = new Array<Direction>;
+// TODO: decide how to manage situations when other agent block me
+export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompare<State>, goal: (tile: Tile) => boolean): Action[] | undefined {
+    let plan = new Array<Action>;
 
     // TODO: check if there is some known parcel
     if (map) {
@@ -219,7 +220,7 @@ export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompa
                 console.log("HERE", x, y, map)    
             }
             let tile = map[x][y];
-            
+
             // console.log("TILE", tile, x, y)
             if (!tile) {
                 continue
@@ -228,6 +229,12 @@ export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompa
                 plan = moves;
                 break;
             } else {
+
+                if (tile.agentID){
+                    // Agent block the path
+                    moves.push("wait")    
+                } 
+
                 if (x > 0) {
                     q.enqueue({x: x-1, y, moves:[...moves, 'left']});
                 }
@@ -245,7 +252,11 @@ export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompa
         }
     }
 
-    return plan;
+    if (plan.length > 0 || goal(map[agent_x][agent_y])) {
+        return plan;
+    } else {
+        return undefined
+    }
 }
 
 // Requires agent information  
@@ -258,91 +269,6 @@ export const airDistance: ICompare<State> = (a: State, b: State) => {
 
 
 // Main loop
-async function main() {
-
-    var direction_index = Math.floor(Math.random()*4)
-    let plan: Direction[] = [];
-
-    while ( true ) {
-        if (plan.length > 0) {
-            console.log("Planned move")
-            let direction: Direction = plan[0]
-
-            // Try the move
-            await agent.move(direction)
-            // Add success callback
-            .then( async () => { 
-                console.log("Plan step done")
-                plan.shift()!
-
-                if (agent.carry && plan.length < 1) {
-                        // TODO: check this socket
-                    await agent.putdown();
-                    agent.carry = [];
-                }
-
-                agent.pickup();
-
-            }) 
-            // Add reject callback
-            .catch( async () => { 
-                console.log("Plan step", direction, "blocked")
-            } );
-        } else {
-            // Random move
-            console.log("Random move")
-            let direction = number_to_direction(direction_index)
-
-            // Try the move
-            await agent.move(direction)
-            // Add success callback
-            .then( async () => { 
-                direction_index += [0,1,3][ Math.floor(Math.random()*3) ]; // may change direction but not going back
-
-                console.log( 'moved', direction, 'next move', direction_index )
-
-                await new Promise( res => setTimeout(res, 100) ); // wait 0.1 sec
-                
-                socket.emit( 'putdown' );
-
-                await new Promise( res => setTimeout(res, 100) ); // wait 0.1 sec
-                socket.emit( 'pickup' );
-            }) 
-            // Add reject callback
-            .catch( async () => { 
-
-                direction_index += Math.floor(Math.random()*4); // change direction if failed going straight
-
-                console.log( 'failed move', direction, 'next move', number_to_direction(direction_index) )
-
-            } );
-
-        }
-        
-
-        // Planning 
-        // Create a new plan
-        if (plan.length < 1) {
-            console.log("\nPlanning")
-            let goal = (agent.carry.length > 0)? isDelivery : isParcel;
-            let new_plan = Astar(agent.map, agent.x, agent.y, nearestTiles, goal)
-
-            plan = new_plan;
-            console.log("---------------------------------")
-            console.log("Current goal is", agent.carry? "delivery" : "parcel")
-            console.log("Plan: ", plan)
-            console.log("-------------------------------")
-        
-        }
-
-        // TODO: if stucked do not block the program in infinite loop
-        await new Promise(res => setTimeout(res, 2000));
-
-    }
-}
-
-// main()
-
 async function loop() {
 
     while (true) {
@@ -352,7 +278,11 @@ async function loop() {
 
             //console.log("\nOptions are {}", options)
             options = agent.filterOptions(options)
-            //console.log("\n\nFiltere are {}", options)
+            
+            console.log("\n\nFiltered are")
+            for (let opt of options) {
+                console.log(opt)
+            }
 
             await new Promise(res => setTimeout(res, 1000));
 
@@ -365,11 +295,16 @@ async function loop() {
             let plan = first.start()
 
             console.log("\n\nEXECUTING", first, "\n\n\n")
-            if (plan)
+            if (plan) {
+                console.error("CURRENT PLAN: ", plan, plan? 1:0);
                 await agent.executePlan(plan)
-                .catch((err) => {
-                    console.log("Plan ", plan, " blocked because ", err)
+                .catch((_) => {
+                    console.log("Plan ", plan, " blocked")
+                    plan = new Array;
                 })
+            } else {
+                continue;
+            }
 
             await new Promise(res => setTimeout(res, 1000));
         } catch(e) {
