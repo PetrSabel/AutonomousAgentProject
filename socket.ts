@@ -2,8 +2,6 @@ import { io } from "socket.io-client"
 import { ICompare, PriorityQueue } from "@datastructures-js/priority-queue"
 import { Tile, TileInfo, ParcelInfo, AgentDesciption, Direction, Action } from "./types"
 import { Agent } from "./agent"
-import { isDelivery, isParcel } from "./goals"
-import { nearestTiles } from "./heuristics"
 import { host, token } from "./main"
 import { Intention } from "./intention"
 
@@ -89,6 +87,11 @@ socket.on("agents sensing", (agents: AgentDesciption[]) => {
             let y = Math.round(a.y)
 
             agent.map[x][y]!.agentID = a.id;
+            setTimeout(() => {
+                if (agent.map[x][y]!.agentID === a.id) {
+                    agent.map[x][y]!.agentID = null 
+                }
+            }, 1000) 
         }
     }
     // TODO: consider if they are moving
