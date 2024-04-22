@@ -229,7 +229,7 @@ export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompa
             // console.log("TILE", tile, x, y)
             if (!tile) {
                 continue
-            } else if (goal(tile)) { // Stop when find the first accepted block
+            } else if (goal(tile) && tile.agentID === null) { // Stop when find the first accepted block
                 console.log("Want to arrive to", x, y, tile, "from", agent_x, agent_y)
                 plan = moves;
                 break;

@@ -2,7 +2,7 @@ import { Action, Desire, Plan } from "./types";
 import { Agent } from "./agent"
 import { Astar, number_to_direction } from "./socket";
 import { generate_shortest_heuristic, nearestTiles } from "./heuristics";
-import { isDelivery, isParcel } from "./goals";
+import { generate_exact_position, isDelivery, isParcel } from "./goals";
 
 // TODO: change agent with requested information
 function plan(agent: Agent, desire: Desire): [Plan, number] {
@@ -39,7 +39,76 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
             
         case "explore":
             // Decide where to move or Random move
-            plan = [number_to_direction(Math.floor(Math.random()*4))]
+            //plan = [number_to_direction(Math.floor(Math.random()*4))]
+            let map = agent.map
+            type Point = { x: number, y: number };
+            const rows = map.length;
+            const cols = map[0].length;
+
+            let maxTrueCount = 0;
+            let maxTruePoints: Point[] = [];
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    let trueCount = 0;
+
+                    for (let m = -2; m <= 2; m++) {
+                        for (let n = -2; n <= 2; n++) {
+                            const x = i + m;
+                            const y = j + n;
+
+                            if (x >= 0 && x < rows && y >= 0 && y < cols && map[x][y]) {
+                                trueCount++;
+                            }
+                        }
+                    }
+
+                    insertInDescendingOrder({ x: i, y: j }, trueCount, maxTruePoints);
+                    function insertInDescendingOrder(point: Point, count: number, points: Point[]): void {
+                        let index = 0;
+                        while (index < points.length && count > getTrueCount(points[index])) {
+                            index++;
+                        }
+                        if(map[point.x][point.y]) {
+                            points.splice(index, 0, point);
+                        }
+                        
+                    }
+                    
+                    function getTrueCount(point: Point): number {
+                        const { x, y } = point;
+                        let trueCount = 0;
+                        for (let m = -2; m <= 2; m++) {
+                            for (let n = -2; n <= 2; n++) {
+                                const dx = x + m;
+                                const dy = y + n;
+                                if (map[dx] && map[dx][dy]) {
+                                    trueCount++;
+                                }
+                            }
+                        }
+                        return trueCount;
+                    }
+
+                    /*if (trueCount > maxTrueCount) {
+                        maxTrueCount = trueCount;
+                        maxTruePoints.splice(0, maxTruePoints.length, { x: i, y: j });
+                    } else if (trueCount === maxTrueCount) {
+                        maxTruePoints.push({ x: i, y: j });
+                    }*/
+                }
+            }
+            let TruePoints_correct = maxTruePoints.slice().reverse();
+            console.log("fjyfhhfhjjhjhgjhjfjhf", TruePoints_correct);
+            new_plan = Astar(agent.map, agent.x, agent.y, generate_shortest_heuristic(TruePoints_correct[0].x, TruePoints_correct[0].y),
+                    generate_exact_position(TruePoints_correct[0].x, TruePoints_correct[0].y));
+            if (new_plan){
+                plan = new_plan;
+            }
+            else{
+                plan == null;
+            }
+            
             return [plan, 0.1]
             
         case "pickup":

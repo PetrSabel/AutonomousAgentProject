@@ -20,7 +20,7 @@ const isDelivery = (tile: Tile) => {
 }
 
 const generate_exact_position = function (x: number, y:number) {
-    return (tile: Tile) => tile && tile.x === x && tile.y === y
+    return (tile: Tile) => (tile !== null && tile.x === x && tile.y === y)
 }
 
 export { isParcel, isDelivery, generate_exact_position };
