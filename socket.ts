@@ -43,7 +43,9 @@ socket.on("map", (x, y, data: TileInfo[]) => {
             parcel: null,
             spawnable: tile.parcelSpawner,
             agentID: null,
-            delivery: tile.delivery
+            delivery: tile.delivery,
+            x: tile.x,
+            y: tile.y,
         };
     }
     agent.map_size = [x,y];

@@ -5,6 +5,8 @@ type PassableTile = {
     spawnable: boolean,
     agentID: string | null,
     delivery: boolean,
+    x: number,
+    y: number,
 };
 
 type EmptyTile = null;
