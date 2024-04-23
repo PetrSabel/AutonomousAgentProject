@@ -8,9 +8,9 @@ const isParcel = (tile: Tile) => {
         return false;
     }
 }
-// TODO: put info about other agents on map to skip them
+
 // TODO: make something when my move is blocked
-// TODO: when new parcel appears closer than goal, change the goal
+// TODO: when new parcel appears closer than goal, change the goal (at least update intentions)
 const isDelivery = (tile: Tile) => {
     if (tile) {
         return tile.delivery
@@ -19,7 +19,7 @@ const isDelivery = (tile: Tile) => {
     }
 }
 
-const generate_exact_position = function (x: number, y:number) {
+function generate_exact_position(x: number, y:number) {
     return (tile: Tile) => (tile !== null && tile.x === x && tile.y === y)
 }
 

@@ -1,7 +1,7 @@
 import { Intention } from "./intention";
 import { Tile, ParcelInfo, Parcel, Direction, Desire, Action } from "./types"
 
-// TODO: declare function for each of agents actions
+// TODO: declare function for each of agents actions (communication lacks)
 export class Agent {
     map: Tile[][];  // matrix[x,y] of Tiles
     // map with scores, assign a score per tile
@@ -12,7 +12,7 @@ export class Agent {
     y: number;
     score: number;
     parcels: Map<string, ParcelInfo>; //TODO: split in 2 (real and expected)
-    // TODO: store agent to predict moves
+    // TODO: store agents to predict moves
     carry: Parcel[];
     carrying_reward: number; // Indicates how much reward can obtain now (if deliver)
 
@@ -44,6 +44,7 @@ export class Agent {
         this.carrying_reward = 0;
         this.config = config;
 
+        // TODO: try to estimate them OR extract from map.config
         this.time_to_move = 1000; // ms
         this.time_to_plan = 1000; // ms
 
@@ -106,6 +107,9 @@ export class Agent {
     }
 
 
+    // TODO: if action is blocked try to replan, maybe add a second plan to each intention
+    //      OR save the search variables somewhere
+    //      maybe requires to store the current intention
     async executePlan(plan: Action[]) {
         for (let action of plan) {
             switch (action) {

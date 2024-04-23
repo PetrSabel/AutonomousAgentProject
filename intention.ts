@@ -1,10 +1,11 @@
 import { Action, Desire, Plan } from "./types";
 import { Agent } from "./agent"
-import { Astar, number_to_direction } from "./socket";
+import { Astar } from "./socket";
 import { generate_shortest_heuristic, nearestTiles } from "./heuristics";
-import { generate_exact_position, isDelivery, isParcel } from "./goals";
+import { generate_exact_position, isDelivery } from "./goals";
 
-// TODO: change agent with requested information
+// TODO: change "agent" with requested information
+// TODO: try to estimate the intention cost to ignore uninteresting ones
 function plan(agent: Agent, desire: Desire): [Plan, number] {
     let plan: Action[] = []
     let score: number = 0
@@ -13,7 +14,7 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
     switch (desire.description) {
         case "deliver":
             // Find deliver tiles
-            // Route to the nearest one
+            // Route to the nearest delivery zone
             new_plan = Astar(agent.map, agent.x, agent.y, nearestTiles, isDelivery);
 
             
@@ -45,7 +46,7 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
             const rows = map.length;
             const cols = map[0].length;
 
-            let maxTrueCount = 0;
+            // TODO: move this computation to "map" handler and store inside the agent
             let maxTruePoints: Point[] = [];
 
             for (let i = 0; i < rows; i++) {
@@ -99,7 +100,11 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
                 }
             }
             let TruePoints_correct = maxTruePoints.slice().reverse();
-            console.log("fjyfhhfhjjhjhgjhjfjhf", TruePoints_correct);
+            console.log("Dense points are ", TruePoints_correct);
+            
+            // Goes to the point where more other points are visible
+            //  Greedy exploring
+            // TODO: add possibility to move between different positions, so never stay still 
             new_plan = Astar(agent.map, agent.x, agent.y, generate_shortest_heuristic(TruePoints_correct[0].x, TruePoints_correct[0].y),
                     generate_exact_position(TruePoints_correct[0].x, TruePoints_correct[0].y));
             if (new_plan){
@@ -114,8 +119,9 @@ function plan(agent: Agent, desire: Desire): [Plan, number] {
         case "pickup":
             // Find route to parcel
             let parcel = desire.parcel
-            // TODO: change goal function to exactPosition
-            new_plan = Astar(agent.map, agent.x, agent.y, generate_shortest_heuristic(parcel.x, parcel.y), isParcel);
+            // TODO: change goal function to exactPosition OR isParcel is better
+            new_plan = Astar(agent.map, agent.x, agent.y,
+                generate_shortest_heuristic(parcel.x, parcel.y), generate_exact_position(parcel.x, parcel.y));
             
             // TODO: more sophisticate score
             
@@ -140,7 +146,7 @@ export class Intention {
     // The associated desire
     desire: Desire 
     currentPlan: Plan
-    // Estimated profit/cost of executing this intention
+    // Estimated profit of executing this intention
     cost: number
     executing: boolean
 

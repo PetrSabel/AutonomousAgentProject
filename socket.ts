@@ -57,6 +57,8 @@ socket.on("tile", (x: number, y: number, delivery: boolean, parcelSpawner: boole
     console.log("tile", data)
 });
 
+// TODO: extract useful information and store them inside the agent
+//      ?? but what if the environment changes?? maybe add a handler/method
 var map_config: any;
 socket.on('config', (data) => {
     map_config = data
@@ -70,6 +72,7 @@ socket.on("not_tile", (x: number, y: number) => {
 
 
 // Idea: declare agent only after receiving initial information
+// TODO: instantiate the agent only after information is received
 let agent = new Agent('Fil', 0, 0, socket, map_config);
 
 
@@ -197,7 +200,8 @@ export type State = {
 };
 
 // TODO: decide how to manage situations when other agent block me
-export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompare<State>, goal: (tile: Tile) => boolean): Action[] | undefined {
+export function Astar(map: Tile[][], agent_x: number, agent_y: number, 
+    h: ICompare<State>, goal: (tile: Tile) => boolean, goal_tile?: [number, number]): Action[] | undefined {
     let plan = new Array<Action>;
 
     // TODO: check if there is some known parcel
@@ -205,6 +209,12 @@ export function Astar(map: Tile[][], agent_x: number, agent_y: number, h: ICompa
 
         // Try to reach it
         let q: PriorityQueue<State> = new PriorityQueue(h);
+        // if (goal_tile) {
+        //     // Start to search from the goal, supposing to arrive at the agent
+        //     q.enqueue({x: goal_tile[0], y: goal_tile[1], moves: []})
+        // }
+        // TODO: inverse each action
+
         q.enqueue({x: Math.round(agent_x), y: Math.round(agent_y), moves: []});
         let visited: Array<[x:number, y:number]> = [];
 
@@ -280,6 +290,7 @@ async function loop() {
         try {
             let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1)
             let options = await agent.getOptions()
+            // TODO: check if current plan is still valid
 
             //console.log("\nOptions are {}", options)
             options = agent.filterOptions(options)
@@ -295,7 +306,10 @@ async function loop() {
                 queue.push(option)
                 if (option.desire.description == "deliver") 
                     console.log("DELIVER COST = ", option.cost)
+                // TODO: consider to combine deliver with some pickup (if aligned)
             }
+
+            // TODO: move this lines inside the agent "execute" 
             let first = queue.pop()
             let plan = first.start()
 
