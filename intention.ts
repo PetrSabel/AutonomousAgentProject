@@ -1,167 +1,69 @@
-import { Action, Desire, Plan } from "./types";
+import { Desire, Plan } from "./types";
 import { Agent } from "./agent"
-import { Astar } from "./socket";
-import { generate_shortest_heuristic, nearestTiles } from "./heuristics";
-import { generate_exact_position, isDelivery } from "./goals";
-
-// TODO: change "agent" with requested information
-// TODO: try to estimate the intention cost to ignore uninteresting ones
-function plan(agent: Agent, desire: Desire): [Plan, number] {
-    let plan: Action[] = []
-    let score: number = 0
-    let new_plan: Action[] | undefined = undefined;
-
-    switch (desire.description) {
-        case "deliver":
-            // Find deliver tiles
-            // Route to the nearest delivery zone
-            new_plan = Astar(agent.map, agent.x, agent.y, nearestTiles, isDelivery);
-
-            
-            if (new_plan) {
-                plan = new_plan
-                plan.push("putdown")
-
-                let parcels = agent.carry
-                // Sum all carried rewards
-                const reward = parcels.map(p => p.reward? p.reward : 0).reduce((acc, num) => acc + num, 0)
-                const loss = parcels.map(p => Math.max(0, p.reward - plan.length)).reduce((acc, num) => acc + num, 0)
-                // TODO: maybe place division
-                score = reward - loss 
-                //score = 20
-                console.log("DELIVERYCOST ", score, reward, loss)
-            
-            } else {
-                score = 0
-            }
-
-            // Return obtained plan
-            return [plan, score]
-            
-        case "explore":
-            // Decide where to move or Random move
-            //plan = [number_to_direction(Math.floor(Math.random()*4))]
-            let map = agent.map
-            type Point = { x: number, y: number };
-            const rows = map.length;
-            const cols = map[0].length;
-
-            // TODO: move this computation to "map" handler and store inside the agent
-            let maxTruePoints: Point[] = [];
-
-            for (let i = 0; i < rows; i++) {
-                for (let j = 0; j < cols; j++) {
-                    let trueCount = 0;
-
-                    for (let m = -2; m <= 2; m++) {
-                        for (let n = -2; n <= 2; n++) {
-                            const x = i + m;
-                            const y = j + n;
-
-                            if (x >= 0 && x < rows && y >= 0 && y < cols && map[x][y]) {
-                                trueCount++;
-                            }
-                        }
-                    }
-
-                    insertInDescendingOrder({ x: i, y: j }, trueCount, maxTruePoints);
-                    function insertInDescendingOrder(point: Point, count: number, points: Point[]): void {
-                        let index = 0;
-                        while (index < points.length && count > getTrueCount(points[index])) {
-                            index++;
-                        }
-                        if(map[point.x][point.y]) {
-                            points.splice(index, 0, point);
-                        }
-                        
-                    }
-                    
-                    function getTrueCount(point: Point): number {
-                        const { x, y } = point;
-                        let trueCount = 0;
-                        for (let m = -2; m <= 2; m++) {
-                            for (let n = -2; n <= 2; n++) {
-                                const dx = x + m;
-                                const dy = y + n;
-                                if (map[dx] && map[dx][dy]) {
-                                    trueCount++;
-                                }
-                            }
-                        }
-                        return trueCount;
-                    }
-
-                    /*if (trueCount > maxTrueCount) {
-                        maxTrueCount = trueCount;
-                        maxTruePoints.splice(0, maxTruePoints.length, { x: i, y: j });
-                    } else if (trueCount === maxTrueCount) {
-                        maxTruePoints.push({ x: i, y: j });
-                    }*/
-                }
-            }
-            let TruePoints_correct = maxTruePoints.slice().reverse();
-            console.log("Dense points are ", TruePoints_correct);
-            
-            // Goes to the point where more other points are visible
-            //  Greedy exploring
-            // TODO: add possibility to move between different positions, so never stay still 
-            new_plan = Astar(agent.map, agent.x, agent.y, generate_shortest_heuristic(TruePoints_correct[0].x, TruePoints_correct[0].y),
-                    generate_exact_position(TruePoints_correct[0].x, TruePoints_correct[0].y));
-            if (new_plan){
-                plan = new_plan;
-            }
-            else{
-                plan == null;
-            }
-            
-            return [plan, 0.1]
-            
-        case "pickup":
-            // Find route to parcel
-            let parcel = desire.parcel
-            // TODO: change goal function to exactPosition OR isParcel is better
-            new_plan = Astar(agent.map, agent.x, agent.y,
-                generate_shortest_heuristic(parcel.x, parcel.y), generate_exact_position(parcel.x, parcel.y));
-            
-            // TODO: more sophisticate score
-            
-            if (new_plan) {
-                score = parcel.reward - plan.length
-                plan = new_plan
-                plan.push("pickup")
-            } else {
-                score = 0
-            }
-            
-            // Return plan
-            return [plan, score]
-
-        default:
-            throw new Error("Desire not implemented")
-    }
-}
+import { plan } from "./auxiliary";
 
 
 export class Intention {
     // The associated desire
     desire: Desire 
     currentPlan: Plan
+    // Optional plan in case of failure
+    // secondPlan?: Plan  
     // Estimated profit of executing this intention
     cost: number
     executing: boolean
+    planning: boolean // TODO: idea is to compute one step for the most 
+                                // convenient Intention (usign priority queue)
+                                // and if it achieves the goal execute it
+
+    x: number 
+    y: number
 
     constructor(agent: Agent, desire: Desire) {
         this.desire = desire
         // TODO: suddivide intention in subintentions
         this.executing = false;
-        [this.currentPlan, this.cost] = plan(agent, desire)
+        [this.currentPlan, this.cost, [this.x, this.y]] = plan(agent, desire)
+        // this.secondPlan = undefined 
+        this.planning = false 
     }
-    // TODO: decide how we suddivide information between Desire, Intention and Plan
 
-    start(): Action[] | undefined {
+    async step(agent: Agent) {
         if (!this.executing) {
             this.executing = true
-            return this.currentPlan
+        }
+
+        let action = this.currentPlan.shift()
+        if (action) {
+            console.log("ACTION = ", action)
+            try {
+                switch (action) {
+                    case "pickup":
+                        await agent.pickup()
+                        break;
+                    case "putdown":
+                        await agent.putdown()
+                        break;
+                    
+                    case "wait":
+                        // TODO: decide what to do
+                        // this.replan(agent)
+                        // agent.blocked = true 
+                        break;
+                
+                    default:
+                        await agent.move(action)
+                        break;
+                }
+            } catch {
+                console.log("ACTION BLOCKED")
+                agent.blocked = true 
+                await new Promise(res => setTimeout(res, 100));
+                return;
+            }
+        } else {
+            this.executing = false
+            return;
         }
     }
 
@@ -171,8 +73,18 @@ export class Intention {
         }
     }
 
-    replan(agent: Agent) {
-        [this.currentPlan, this.cost] = plan(agent, this.desire)
+    // async replan(agent: Agent) {
+    //     [this.secondPlan, this.cost] = plan(agent, this.desire)
+    // }
+
+    // planB() {
+    //     if (this.secondPlan) {
+    //         this.currentPlan = this.secondPlan
+    //     }
+    // }
+
+    estimateProfit(): number {
+        return this.cost;
     }
 }
 

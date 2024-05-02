@@ -10,7 +10,6 @@ const isParcel = (tile: Tile) => {
 }
 
 // TODO: make something when my move is blocked
-// TODO: when new parcel appears closer than goal, change the goal (at least update intentions)
 const isDelivery = (tile: Tile) => {
     if (tile) {
         return tile.delivery
@@ -20,7 +19,7 @@ const isDelivery = (tile: Tile) => {
 }
 
 function generate_exact_position(x: number, y:number) {
-    return (tile: Tile) => (tile !== null && tile.x === x && tile.y === y)
+    return (tile: Tile) => (tile !== null) ? (tile.x === x && tile.y === y) : false;
 }
 
 export { isParcel, isDelivery, generate_exact_position };

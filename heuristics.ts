@@ -1,19 +1,24 @@
 import { ICompare } from "@datastructures-js/priority-queue";
-import { State } from "./socket"
+import { State } from "./astar"
 
-// Tile heuristics
-export const nearestTiles: ICompare<State> = (a: State, b: State) => {
+export { nearestTiles, generate_air_distance }
+
+const BETTER_OPTION: number = -1;
+const WORSE_OPTION: number = 1;
+
+const nearestTiles: ICompare<State> = (a: State, b: State) => {
     let dist_a = a.moves.length 
     let dist_b = b.moves.length 
     
-    return dist_a < dist_b ? -1 : 1;
+    return dist_a < dist_b ? BETTER_OPTION : WORSE_OPTION;
 };
 
-export function generate_shortest_heuristic(x: number, y:  number) {
+// Considers distance to given (x,y)
+function generate_air_distance(x: number, y: number) {
     return (a: State, b: State) => {
-        let dist_a = Math.abs(a.x - x) + Math.abs(a.y - y)
-        let dist_b = Math.abs(b.x - x) + Math.abs(b.y - y) 
-        
-        return dist_a < dist_b ? -1 : 1;
+        let dist_a = Math.abs(x - a.x) + Math.abs(y - a.y)
+        let dist_b = Math.abs(x - b.x) + Math.abs(y - b.y)
+
+        return dist_a < dist_b ? BETTER_OPTION : WORSE_OPTION;
     }
-} 
+}

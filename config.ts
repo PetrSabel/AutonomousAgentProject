@@ -5,7 +5,7 @@ const config = {
     },
     remote: {
         host: "https://deliveroojs.onrender.com",
-        token: ""
+        token: "" // TODO: initialize the token if not provided
     }
 }
 

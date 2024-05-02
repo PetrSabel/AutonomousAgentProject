@@ -63,8 +63,14 @@ type Desire = {
 
 type Plan = Action[];
 
+type Estimation = {
+    cost: number,
+    last_action: number,
+    last_coordinates: [number, number],
+}
+
 export { 
     Direction, TileInfo, PassableTile, EmptyTile, Tile,
     ParcelInfo, Parcel, AgentDesciption,
-    Desire, Action, Plan
+    Desire, Action, Plan, Estimation
 };
