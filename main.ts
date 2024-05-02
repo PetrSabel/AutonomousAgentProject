@@ -1,13 +1,16 @@
 import { Agent } from "./agent";
 import { default as config } from "./config"
-import { map, map_config, map_size, personal_info, socket } from "./socket";
+import { create_socket, map, map_config, map_size, personal_info, set_initial_listeners } from "./socket";
 
 const LOCAL_SERVER: boolean = true;
 
-export const host = LOCAL_SERVER? config.local.host : config.remote.host;
-export const token = LOCAL_SERVER? config.local.token : config.remote.token;
+const host = LOCAL_SERVER? config.local.host : config.remote.host;
+const token = LOCAL_SERVER? config.local.token : config.remote.token;
 
 console.log("The server at ", host)
+
+const socket = create_socket(host, token)
+set_initial_listeners(socket)
 
 // Creates the agent when possible
 function initialize_agent() {

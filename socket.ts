@@ -1,43 +1,45 @@
 import { io } from "socket.io-client"
 import { Tile, TileInfo, AgentDesciption, ParcelInfo } from "./types"
-import { host, token } from "./main"
 import { Agent } from "./agent";
 
-export { set_agent_listeners }
+export { set_agent_listeners, create_socket, set_initial_listeners }
 
 // IDea: use Reinforcement Learning
 
-export var socket = io( host, {
-    extraHeaders: {
-        'x-token': token
-    },
-    // query: {
-    //     name: "scripted",
-    // }
-});
+function create_socket(host: string, token: string) {
+    let socket = io( host, {
+        extraHeaders: {
+            'x-token': token
+        },
+        // query: {
+        //     name: "scripted",
+        // }
+    });
+    
+    // Initial listeners (executed only once)
+    socket.on("connect", () => {
+        console.log( "socket connect", socket.id );
+    });
 
+    socket.on("disconnect", () => {
+        socket.removeAllListeners();
+        console.log( "socket disconnect", socket.id );
+    });
 
-// Initial listeners (executed only once)
-socket.on("connect", () => {
-    console.log( "socket connect", socket.id );
-});
+    // Not very usefull listeners
+    // Obtain singular tile
+    socket.on("tile", (x: number, y: number, delivery: boolean, parcelSpawner: boolean) => {
+        let data: TileInfo = {x, y, delivery, parcelSpawner}
+        console.log("tile", data)
+    });
 
-socket.on("disconnect", () => {
-    socket.removeAllListeners();
-    console.log( "socket disconnect", socket.id );
-});
+    // Obtain description of unaccessible tiles
+    socket.on("not_tile", (x: number, y: number) => {
+        console.log("not tile", x, y)
+    });
 
-// Not very usefull listeners
-// Obtain singular tile
-socket.on("tile", (x: number, y: number, delivery: boolean, parcelSpawner: boolean) => {
-    let data: TileInfo = {x, y, delivery, parcelSpawner}
-    console.log("tile", data)
-});
-
-// Obtain description of unaccessible tiles
-socket.on("not_tile", (x: number, y: number) => {
-    console.log("not tile", x, y)
-});
+    return socket;
+}
 
 
 let map: Tile[][] | undefined = undefined;
@@ -46,51 +48,54 @@ let map_config: any | undefined = undefined;
 let personal_info: {x: number, y: number, id: string, name: string} | undefined = undefined;
 export { map, map_size, map_config, personal_info }
 
-// Obtain all tiles
-socket.on("map", (x: number, y: number, data: TileInfo[]) => {
-    console.log("map", data)
-    // agent.map = data; // TODO: remap values
-    let new_map = new Array();
-    for (let i = 0; i < x; i++) {
-        new_map.push(new Array(y));
-        // for (let j = 0; j < y; j++) {
-        //     agent.map[i].push(undefined)
-        // }
-    }
+function set_initial_listeners(socket: any) {
+    // Obtain all tiles
+    socket.on("map", (x: number, y: number, data: TileInfo[]) => {
+        console.log("map", data)
+        // agent.map = data; // TODO: remap values
+        let new_map = new Array();
+        for (let i = 0; i < x; i++) {
+            new_map.push(new Array(y));
+            // for (let j = 0; j < y; j++) {
+            //     agent.map[i].push(undefined)
+            // }
+        }
+        
+        for (let tile of data) {
+            new_map[tile.x][tile.y] = {
+                parcel: null,
+                spawnable: tile.parcelSpawner,
+                agentID: null,
+                delivery: tile.delivery,
+                x: tile.x,
+                y: tile.y,
+            };
+        }
+
+        map = new_map
+        map_size = [x,y] 
+    });
+
+    socket.on('config', (data: any) => {
+        console.log("Configuration: ", data)
+        map_config = data
+    })
+
+    // Gets personal information about the agent (but only the first time)
+    socket.once("you", (me: AgentDesciption) => {
+        console.log("you", me)
+        // Update position
+        // TODO: better check if predicted position is same to control plan execution
     
-    for (let tile of data) {
-        new_map[tile.x][tile.y] = {
-            parcel: null,
-            spawnable: tile.parcelSpawner,
-            agentID: null,
-            delivery: tile.delivery,
-            x: tile.x,
-            y: tile.y,
-        };
-    }
+        personal_info = {
+            x: me.x,
+            y: me.y,
+            id: me.id,
+            name: me.name,
+        }
+    });
 
-    map = new_map
-    map_size = [x,y] 
-});
-
-socket.on('config', (data: any) => {
-    console.log("Configuration: ", data)
-    map_config = data
-})
-
-// Gets personal information about the agent (but only the first time)
-socket.once("you", (me: AgentDesciption) => {
-    console.log("you", me)
-    // Update position
-    // TODO: better check if predicted position is same to control plan execution
-   
-    personal_info = {
-        x: me.x,
-        y: me.y,
-        id: me.id,
-        name: me.name,
-    }
-});
+}
 
 
 function set_agent_listeners(socket: any, agent: Agent) {
