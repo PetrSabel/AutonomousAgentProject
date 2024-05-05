@@ -102,7 +102,7 @@ function set_agent_listeners(socket: any, agent: Agent) {
     // Set new event handlers 
     // Obtain my current information
     socket.on("you", (me: AgentDesciption) => {
-        console.log("you", me)
+        // console.log("you", me)
         // Update position
         // TODO: better check if predicted position is same to control plan execution
     
@@ -120,14 +120,25 @@ function set_agent_listeners(socket: any, agent: Agent) {
             // If some other agent
             if (a.id !== agent.id) {
                 // TODO: consider 2 cell when moving
+
+                if (agent.agents.has(a.id)) {
+                    let intruder: AgentDesciption = agent.agents.get(a.id)!;
+                    let x = Math.round(intruder.x)
+                    let y = Math.round(intruder.y) 
+                    
+                    agent.map[x][y] = null 
+                }
+
                 let x = Math.round(a.x)
                 let y = Math.round(a.y)
 
+                // Remember the agent in that position for 1 sec
                 agent.map[x][y]!.agentID = a.id;
                 setTimeout(() => {
                     if (agent.map[x][y]!.agentID === a.id) {
                         agent.map[x][y]!.agentID = null 
                     }
+                    agent.agents.delete(a.id);
                 }, 1000) 
             }
         }
@@ -141,15 +152,15 @@ function set_agent_listeners(socket: any, agent: Agent) {
         // TODO: consider only parcels that should be present in the agent view
         // Now it removes also parcels outside of the view
 
-        for (let id of agent.parcels.keys()) {
-            // TODO: add if the parcel is visible
-            let parcel = parcels.find(p => p.id === id)
-            if (parcel !== undefined) {
-                if (parcel.carriedBy) {
-                    agent.remove_parcel(parcel.id)
-                }
-            }
-        }
+        // for (let id of agent.parcels.keys()) {
+        //     // TODO: add if the parcel is visible
+        //     let parcel = parcels.find(p => p.id === id)
+        //     if (parcel != undefined) {
+        //         if (parcel.carriedBy) {
+        //             agent.remove_parcel(parcel.id)
+        //         }
+        //     }
+        // }
 
         // Update belief
         for (let parcel of parcels) {
@@ -161,45 +172,48 @@ function set_agent_listeners(socket: any, agent: Agent) {
                         parcel: parcel
                     })
                 }
-                // Save new parcel
-                agent.parcels.set(parcel.id, parcel)
+
+                // Save parcel
+                agent.update_parcel(parcel)
+                
             } else {
                 agent.remove_parcel(parcel.id)
             }
         }
 
-        for (let parcel of parcels) {
-            if (!parcel.carriedBy) {
-                let tile = agent.map[parcel.x][parcel.y];
-                if (tile) {
-                    tile.parcel = parcel.id 
 
-                    // setTimeout(() => {
-                    //     tile!.parcel = null
-                    // }, 1000 * parcel.reward) 
-                    // Assume that a parcel expires after "reward" seconds
-                }
-            } else { // If carried
-                let x = Math.round(parcel.x)
-                let y = Math.round(parcel.y)
+        // for (let parcel of parcels) {
+        //     if (!parcel.carriedBy) {
+        //         let tile = agent.map[parcel.x][parcel.y];
+        //         if (tile) {
+        //             tile.parcel = parcel.id 
+
+        //             // setTimeout(() => {
+        //             //     tile!.parcel = null
+        //             // }, 1000 * parcel.reward) 
+        //             // Assume that a parcel expires after "reward" seconds
+        //         }
+        //     } else { // If carried
+        //         let x = Math.round(parcel.x)
+        //         let y = Math.round(parcel.y)
                 
-                try {
-                    let _ = agent.map[x][y]
-                } catch {
-                    console.log("PARCEL ERROR", parcel)
-                    console.log("CONT", agent.map, agent.map[x])
-                }
+        //         try {
+        //             let _ = agent.map[x][y]
+        //         } catch {
+        //             console.log("PARCEL ERROR", parcel)
+        //             console.log("CONT", agent.map, agent.map[x])
+        //         }
 
-                let tile = agent.map[x][y];
-                if (tile) {
-                    tile.parcel = null;
-                }
+        //         let tile = agent.map[x][y];
+        //         if (tile) {
+        //             tile.parcel = null;
+        //         }
 
-                if (parcel.carriedBy === agent.id) {
-                    // agent.carry = true;
-                }
-            }
-        }
+        //         if (parcel.carriedBy === agent.id) {
+        //             // agent.carry = true;
+        //         }
+        //     }
+        // }
     });
 
 }

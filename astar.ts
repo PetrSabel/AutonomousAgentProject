@@ -63,6 +63,7 @@ export function Astar(map: Tile[][], map_size: [number, number], agent_x: number
                 if (tile.agentID){
                     // Agent blocks the path
                     // moves.push("wait")  
+                    
                     continue; // Ignore the tile if occupied  
                 } 
 

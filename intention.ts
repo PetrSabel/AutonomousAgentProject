@@ -35,7 +35,7 @@ export class Intention {
 
         let action = this.currentPlan.shift()
         if (action) {
-            console.log("ACTION = ", action)
+            // console.log("ACTION = ", action)
             try {
                 switch (action) {
                     case "pickup":
@@ -56,7 +56,7 @@ export class Intention {
                         break;
                 }
             } catch {
-                console.log("ACTION BLOCKED")
+                // console.log("ACTION BLOCKED")
                 agent.blocked = true 
                 await new Promise(res => setTimeout(res, 100));
                 return;

@@ -4,7 +4,7 @@ import { generate_exact_position, isDelivery } from "./goals";
 import { generate_air_distance, nearestTiles } from "./heuristics";
 import { Action, Desire, Plan, Tile } from "./types";
 
-export { plan, EXPLORE_COST, compute_dense_tiles, Point }
+export { plan, EXPLORE_COST, compute_dense_tiles, Point, detect_agents }
 
 const EXPLORE_COST: number = 0.1;
 const MOVE_COST: number = 2;
@@ -37,7 +37,7 @@ function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
                 // TODO: maybe place division
                 score = reward - loss 
                 //score = 20
-                console.log("DELIVERYCOST ", score, reward, loss)
+                // console.log("DELIVERYCOST ", score, reward, loss)
             
             } else {
                 score = 0
@@ -52,17 +52,9 @@ function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
             
             // Goes to the point where more other points are visible
             //  Greedy exploring
-            // TODO: add possibility to move between different positions, so never stay still 
 
-            let choice = agent.dense_tiles[agent.dense_visited];
-            if (choice.x === Math.round(agent.x) && choice.y === Math.round(agent.y) ) {
-                agent.dense_visited += 1
-                agent.dense_visited %= agent.dense_tiles.length
-                choice = agent.dense_tiles[agent.dense_visited];
-            } else {
-                agent.dense_visited = 0;
-                choice = agent.dense_tiles[agent.dense_visited];
-            }
+            const choice = agent.dense_tiles.shift()!;
+            agent.dense_tiles.push(choice);
 
             [new_plan, coor] = Astar(agent.map, agent.map_size, agent.x, agent.y,
                     generate_air_distance(choice.x, choice.y),
@@ -87,6 +79,12 @@ function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
             
             if (new_plan) {
                 score = parcel.reward - plan.length * MOVE_COST
+                // Evaluates if there is an agent nearby
+                const n_others = detect_agents(parcel.x, parcel.y, agent)
+                if (n_others > 0) {
+                    score /= Math.pow(2, n_others);
+                }
+
                 plan = new_plan
                 plan.push("pickup")
             } else {
@@ -99,6 +97,28 @@ function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
         default:
             throw new Error("Desire not implemented")
     }
+}
+
+function detect_agents(x: number, y: number, agent: Agent): number {
+    let map = agent.map;
+    let res = 0;
+
+    const [moves, _] = Astar(map, agent.map_size, agent.x, agent.y,
+        generate_air_distance(x, y), generate_exact_position(x, y));
+    const my_distance = moves ? moves.length : 100_000;
+    
+    for (const intruder of agent.agents.values()) {
+        let [moves, _] = Astar(map, agent.map_size, intruder.x, intruder.y,
+            generate_air_distance(x, y), generate_exact_position(x, y));
+
+        let intruder_distance = moves? moves.length : 100_000;
+        
+        if (intruder_distance < my_distance) {
+            res += 1;
+        }
+    }
+
+    return res;
 }
 
 type Point = { x: number, y: number };
@@ -156,5 +176,11 @@ function compute_dense_tiles(map: Tile[][]) {
         }
     }
 
-    return maxTruePoints.slice().reverse();
+    if (maxTruePoints.length < 1) {
+        maxTruePoints.push({
+            x: 0, y: 0
+        })
+    }
+
+    return maxTruePoints.reverse().slice(0, Math.floor(maxTruePoints.length * 0.3));
 }

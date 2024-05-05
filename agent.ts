@@ -1,7 +1,7 @@
 import { PriorityQueue } from "@datastructures-js/priority-queue";
 import { Intention } from "./intention";
-import { Tile, ParcelInfo, Parcel, Direction, Desire } from "./types"
-import { EXPLORE_COST, Point, compute_dense_tiles } from "./auxiliary";
+import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption } from "./types"
+import { EXPLORE_COST, Point, compute_dense_tiles, detect_agents } from "./auxiliary";
 import { set_agent_listeners } from "./socket";
 
 
@@ -14,7 +14,8 @@ export class Agent {
     x: number;
     y: number;
     score: number;
-    parcels: Map<string, ParcelInfo>; //TODO: split in 2 (real and expected)
+    parcels: Map<string, ParcelInfo>; // TODO: split in 2 (real and expected)
+    agents: Map<string, AgentDesciption>;
     // TODO: store agents to predict moves
     carry: Parcel[];
     carrying_reward: number; // Indicates how much reward can obtain now (if deliver)
@@ -57,6 +58,7 @@ export class Agent {
         this.carry = [];
         this.carrying_reward = 0;
         this.score = 0;
+        this.agents = new Map();
         // this.current_optimal_cost = 0.0; // The optimal cost executing an intention 
 
         // TODO: try to estimate them OR extract from map.config
@@ -76,17 +78,24 @@ export class Agent {
         this.dense_tiles = compute_dense_tiles(this.map);
         this.dense_visited = 0
         
-        // Updates known parcels
-        setInterval(() => {
-            // Decreases parcels' rewards
-            for (let parcel of this.parcels.values()) {
-                parcel.reward -= 1;
-            }
-            // Removes expired parcels
-            this.parcels = new Map(
-                [...this.parcels].filter(([k, v]) => v.reward > 0)
-            );
-        }, 1000)
+        const parcel_decay_time: string = this.config.PARCEL_DECADING_INTERVAL
+
+        // TODO: set decay time from configuration
+        if (parcel_decay_time !== 'infinite') {
+            // let decay_time = 1000 * parcel_decay_time.match("[0-9]*s");
+            let decay_time = 1000;
+            // Updates known parcels
+            setInterval(() => {
+                // Decreases parcels' rewards
+                for (let parcel of this.parcels.values()) {
+                    parcel.reward -= 1;
+                }
+                // Removes expired parcels
+                this.parcels = new Map(
+                    [...this.parcels].filter(([k, v]) => v.reward > 0)
+                );
+            }, decay_time)
+        }
     }
 
     start() {
@@ -111,18 +120,19 @@ export class Agent {
 
     async pickup() {
         this.socket.emit( 'pickup', (parcels: Parcel[]) => {
-            // console.log("Picked up", parcels)
+            console.log("Picked up", this.map[this.x][this.y])
+            console.log("HERE BUG", this.parcels)
             for (let parcel of parcels) {
                 this.carry.push(parcel);
                 this.remove_parcel(parcel.id)
-                console.log("PARCEL PICKED", parcel)
+                // console.log("PARCEL PICKED", parcel)
             }
         } );
     }
 
     async putdown() {
         await this.socket.emit( 'putdown', (parcel: any) => {
-            console.log("Putted", parcel)
+            // console.log("Putted", parcel)
             this.carry = [];
         } );
 
@@ -146,8 +156,8 @@ export class Agent {
     // Main loop
     async #loop() {
         while (true) {
-            console.log("------------------------------------------")
-            console.error("New iteration")
+            // console.log("------------------------------------------")
+            // console.error("New iteration")
 
             try {
                 let options = this.getOptions()
@@ -212,8 +222,9 @@ export class Agent {
 
         for (let option of options) {
             queue.push(option)
-            if (option.desire.description == "deliver") 
-                console.log("DELIVER COST = ", option.cost)
+            if (option.desire.description == "deliver") {
+                // console.log("DELIVER COST = ", option.cost)
+            }
             // TODO: consider to combine deliver with some pickup (if aligned)
         }
 
@@ -224,25 +235,25 @@ export class Agent {
         this.blocked = false 
         this.current_intention = intention;
         console.log("EXECUTING", intention.desire.description, intention.x, intention.y)
-        console.log("PLAN=", intention.currentPlan)
+        // console.log("PLAN=", intention.currentPlan)
 
         do {
 
             await this.reactive_behavior()
 
             if (this.new_desires.length > 0) {
-                console.log("NEW DESIRES FOUND", this.new_desires)
+                // console.log("NEW DESIRES FOUND", this.new_desires)
                 let new_options = this.get_new_options()
                 let filtered = this.filterOptions(new_options)
 
                 let first = filtered.pop()
                 if (first.estimateProfit() > this.current_intention.estimateProfit()) {
-                    console.log("CHANGED")
+                    // console.log("CHANGED")
                     this.current_intention = first 
                 } else {
-                    console.log("NOT CHANGED")
+                    // console.log("NOT CHANGED")
                 }
-                console.log("tmp", this.new_desires)
+                // console.log("tmp", this.new_desires)
             }
 
             if (this.check_reachable()) {
@@ -257,8 +268,9 @@ export class Agent {
         // Check if the tile has a parcel
         let x = Math.round(this.x)
         let y = Math.round(this.y)
+
         if (this.map[x][y]?.parcel) {
-            await this.pickup()
+            await this.pickup();
         }
 
         // Putdown if pass through delivery zone
@@ -267,6 +279,7 @@ export class Agent {
         }
     }
 
+    // Returns whether the destination is accesible
     check_reachable(): boolean {
         const intention = this.current_intention;
         if (intention) {
@@ -277,7 +290,9 @@ export class Agent {
                 case "deliver": {
                     // Check if the delivery zone is free
                     let destination = this.map[intention.x][intention.y];
-                    return destination ? (destination.agentID === null) : false;
+                    const successful_simulation = this.simulate_intention();
+                    const destionation_clear = destination ? (destination.agentID === null) : false; 
+                    return successful_simulation && destionation_clear;
                 }
                 case "pickup": {
                     // Check if the parcel is still in Beliefs and the tile is reachable
@@ -285,7 +300,13 @@ export class Agent {
                     const parcel_exists = this.parcels.has(parcel.id);
                     let destination = this.map[intention.x][intention.y];
                     const destionation_clear = destination ? (destination.agentID === null) : false;
-                    return parcel_exists && destionation_clear;
+
+                    const n_others = detect_agents(intention.x, intention.y, this);
+                    const too_many_intruders = n_others < 1;
+
+                    const successful_simulation = this.simulate_intention();
+
+                    return parcel_exists && destionation_clear && too_many_intruders && successful_simulation;
                 }
             }
         } else {
@@ -305,9 +326,67 @@ export class Agent {
         }
     }
 
-    // TODO: simulate execution of the plan and check whether blocked or something fails
-    simulate_intention() {
+    update_parcel(parcel: ParcelInfo) {
+        // If transported remove
+        if (parcel.carriedBy) {
+            if (this.parcels.has(parcel.id)) {
+                this.remove_parcel(parcel.id);
+            }
+        } else { // Save new parcel or update a known one
+            // Removes old position
+            if (this.parcels.has(parcel.id)) {
+                let x = Math.round(parcel.x)
+                let y = Math.round(parcel.y)
 
+                this.map[x][y]!.parcel = null;
+            }
+            this.parcels.set(parcel.id, parcel);
+            let x = Math.round(parcel.x)
+            let y = Math.round(parcel.y) 
+
+            this.map[x][y]!.parcel = parcel.id;
+        }
+    }
+
+    // TODO: simulate execution of the plan and check whether blocked or something fails
+    // Checks whether the current intention is still valid
+    simulate_intention(): boolean {
+        if (this.current_intention) {
+            let x = Math.round(this.x);
+            let y = Math.round(this.y);
+            for (const action of this.current_intention.currentPlan) {
+                [x, y] = this.next_position(x, y, action);
+                if (this.map[x][y] != null) {
+                    if (this.map[x][y]!.agentID != null) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    next_position(x: number, y: number, action: Action): [number, number] {
+        switch(action) {
+            case "left": {
+                return [x-1, y];
+            }
+            case "right": {
+                return [x+1, y];
+            }
+            case "up": {
+                return [x, y+1];
+            }
+            case "down": {
+                return [x, y-1];
+            }
+            default: {
+                return [x,y];
+            }
+        }
     }
 
     // TODO: if action is blocked try to replan, maybe add a second plan to each intention
