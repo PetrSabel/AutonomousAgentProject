@@ -82,8 +82,9 @@ export class Agent {
 
         // TODO: set decay time from configuration
         if (parcel_decay_time !== 'infinite') {
-            // let decay_time = 1000 * parcel_decay_time.match("[0-9]*s");
-            let decay_time = 1000;
+            let decay = parcel_decay_time.replace(/\D/g, '');
+            console.log("Decay", decay)
+            let decay_time: number = 1000 * Number(decay);
             // Updates known parcels
             setInterval(() => {
                 // Decreases parcels' rewards
@@ -91,9 +92,12 @@ export class Agent {
                     parcel.reward -= 1;
                 }
                 // Removes expired parcels
-                this.parcels = new Map(
-                    [...this.parcels].filter(([k, v]) => v.reward > 0)
-                );
+                this.parcels.forEach((p, id, _) => {
+                    if (p.reward < 1) {
+                        this.remove_parcel(id)
+                    }
+                })
+
             }, decay_time)
         }
     }
