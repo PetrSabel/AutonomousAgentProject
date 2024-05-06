@@ -55,10 +55,12 @@ type Desire = {
     // Explore: agent will to find new parcels
     // Deliver: agent will to deliver carried parcels
     description: "explore" | "deliver",
+    tries_number: number,
 } | {
     // Pickup: agent will to pickup a particular parcel, created when the agent see new parcel
     description: "pickup",
     parcel: ParcelInfo,
+    tries_number: number,
 }
 
 type Plan = Action[];

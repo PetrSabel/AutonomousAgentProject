@@ -18,7 +18,7 @@ const isDelivery = (tile: Tile) => {
     }
 }
 
-function generate_exact_position(x: number, y:number) {
+function generate_exact_position(x: number, y: number) {
     return (tile: Tile) => (tile !== null) ? (tile.x === x && tile.y === y) : false;
 }
 

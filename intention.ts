@@ -2,6 +2,7 @@ import { Desire, Plan } from "./types";
 import { Agent } from "./agent"
 import { plan } from "./auxiliary";
 
+// TODO: add time/tries spent for doing a task (to avoid forward-backward giggling)
 
 export class Intention {
     // The associated desire
@@ -55,14 +56,15 @@ export class Intention {
                         await agent.move(action)
                         break;
                 }
-            } catch {
-                // console.log("ACTION BLOCKED")
-                agent.blocked = true 
-                await new Promise(res => setTimeout(res, 100));
+            } catch(e) {
+                // console.log("ACTION BLOCKED", e)
+                agent.blocked = true;
                 return;
             }
         } else {
+            // Empty intention
             this.executing = false
+            await new Promise(res => setTimeout(res, 5));
             return;
         }
     }

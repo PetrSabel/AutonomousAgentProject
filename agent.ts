@@ -4,6 +4,7 @@ import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption } 
 import { EXPLORE_COST, Point, compute_dense_tiles, detect_agents } from "./auxiliary";
 import { set_agent_listeners } from "./socket";
 
+export const FORGET_AFTER: number = 500; // ms
 
 // TODO: declare function for each of agents actions (communication lacks)
 export class Agent {
@@ -26,6 +27,7 @@ export class Agent {
 
     time_to_move: number; // The time needed to execute a move
     time_to_plan: number; // Expected time to plan next move (average)
+    time_to_decay: number;
 
     current_intention?: Intention 
     blocked: boolean
@@ -35,6 +37,8 @@ export class Agent {
 
     dense_tiles: Array<Point>
     dense_visited: number
+
+    move_cost: number;
 
     // BDI
     desires: Desire[]
@@ -53,6 +57,8 @@ export class Agent {
 
         this.socket = socket; // TODO: connect to actual socket and declare event listeners
 
+        this.move_cost = this.config.MOVEMENT_DURATION/1000;
+
         // Initialize new run (supposing the agent does not know nothing)
         this.parcels = new Map();
         this.carry = [];
@@ -65,7 +71,7 @@ export class Agent {
         this.time_to_move = 1000; // ms
         this.time_to_plan = 1000; // ms
 
-        this.desires = [{description: "explore"}, {description: "deliver"}]
+        this.desires = [{description: "explore", tries_number: 0,}, {description: "deliver", tries_number: 0,}]
         this.new_desires = []
 
         this.current_intention= undefined;
@@ -84,7 +90,13 @@ export class Agent {
         if (parcel_decay_time !== 'infinite') {
             let decay = parcel_decay_time.replace(/\D/g, '');
             console.log("Decay", decay)
-            let decay_time: number = 1000 * Number(decay);
+
+            let decay_time: number;
+            try {
+                decay_time = 1000 * Number(decay);
+            } catch {
+                decay_time = 1000;
+            }
             // Updates known parcels
             setInterval(() => {
                 // Decreases parcels' rewards
@@ -99,6 +111,10 @@ export class Agent {
                 })
 
             }, decay_time)
+
+            this.time_to_decay = decay_time;
+        } else {
+            this.time_to_decay = 1_000_000;
         }
     }
 
@@ -108,8 +124,7 @@ export class Agent {
     }
 
     createIntention(desire: Desire) {
-        let intention = new Intention(this, desire)
-        return intention;
+        return new Intention(this, desire);
     }
 
     changeIntention(new_intention: Intention) {
@@ -124,8 +139,8 @@ export class Agent {
 
     async pickup() {
         this.socket.emit( 'pickup', (parcels: Parcel[]) => {
-            console.log("Picked up", this.map[this.x][this.y])
-            console.log("HERE BUG", this.parcels)
+            // console.log("Picked up", this.map[this.x][this.y])
+            // console.log("HERE BUG", this.parcels)
             for (let parcel of parcels) {
                 this.carry.push(parcel);
                 this.remove_parcel(parcel.id)
@@ -165,11 +180,18 @@ export class Agent {
 
             try {
                 let options = this.getOptions()
+                
                 let queue = this.filterOptions(options)
 
-                // TODO: move this lines inside the agent "execute" 
-                let first = queue.pop()
-                await this.executeIntention(first)
+                // console.log("QUEUE")
+                // for (let q of queue.toArray()) {
+                //     console.log(q)
+                // }
+
+                let first = queue.pop();
+                if (first) {
+                    await this.executeIntention(first);
+                }
 
                 await new Promise(res => setTimeout(res, 5));
             } catch(e) {
@@ -181,11 +203,16 @@ export class Agent {
 
     // TODO: try to estimate the intention cost to ignore uninteresting ones
     getOptions(): Intention[] {
-        this.desires = [{description: "explore"}, {description: "deliver"}]
+        this.desires = [];
+        this.desires.length = 0;
+
+        this.desires.push({description: "explore", tries_number: 0,});
+        this.desires.push({description: "deliver", tries_number: 0,})
         for(let parcel of this.parcels.values()) {
             this.desires.push({
                 description:"pickup",
-                parcel: parcel
+                parcel: parcel, 
+                tries_number: 0,
             })
         }
 
@@ -239,33 +266,52 @@ export class Agent {
         this.blocked = false 
         this.current_intention = intention;
         console.log("EXECUTING", intention.desire.description, intention.x, intention.y)
+        // console.log("PLAN", intention.currentPlan)
+        // console.log("AGENTS", this.agents)
         // console.log("PLAN=", intention.currentPlan)
 
         do {
-
-            await this.reactive_behavior()
+            // console.log("BEFORE REACT")
+            await this.reactive_behavior();
+            // console.log("AFTER REACT")
 
             if (this.new_desires.length > 0) {
                 // console.log("NEW DESIRES FOUND", this.new_desires)
                 let new_options = this.get_new_options()
                 let filtered = this.filterOptions(new_options)
 
+                // console.log("NEW QUEUE")
+                // for (let q of filtered.toArray()) {
+                //     console.log(q)
+                // }
+
                 let first = filtered.pop()
-                if (first.estimateProfit() > this.current_intention.estimateProfit()) {
-                    // console.log("CHANGED")
-                    this.current_intention = first 
-                } else {
-                    // console.log("NOT CHANGED")
+                if (first) {
+                    if (this.current_intention == undefined) {
+                        this.current_intention = first
+                    } else if (first.estimateProfit() > this.current_intention.estimateProfit()) {
+                        // console.log("CHANGED")
+                        this.current_intention = first 
+                    } else {
+                        // console.log("NOT CHANGED")
+                    }
                 }
                 // console.log("tmp", this.new_desires)
             }
 
-            if (this.check_reachable()) {
-                await this.current_intention.step(this)
-            } else {
-                return;
-            }
-        } while (this.current_intention.executing && !this.blocked)
+            await this.current_intention.step(this);
+            // console.log("STEP")
+            // if (this.check_reachable()) {
+                
+            //     console.log("INTENTION ACHIEVED")
+            // } else {
+            //     console.log("NOT REACHABLE")
+            //     return;
+            // }
+        } while (this.current_intention.executing && !this.blocked && this.check_reachable())
+
+        // Give a possibility to update beliefs (asynchronously)
+        // await new Promise(res => setTimeout(res, 50));
     }
 
     async reactive_behavior() {
@@ -289,8 +335,8 @@ export class Agent {
         if (intention) {
             switch (intention.desire.description) {
                 case "explore":
-                    // Explore is always reachable, at most move is blocked
-                    return true;
+                    const successful_simulation = this.simulate_intention();
+                    return successful_simulation;
                 case "deliver": {
                     // Check if the delivery zone is free
                     let destination = this.map[intention.x][intention.y];
@@ -301,23 +347,30 @@ export class Agent {
                 case "pickup": {
                     // Check if the parcel is still in Beliefs and the tile is reachable
                     let parcel = intention.desire.parcel
-                    const parcel_exists = this.parcels.has(parcel.id);
+                    const x = Math.round(parcel.x)
+                    const y = Math.round(parcel.y)
+                    const parcel_exists = this.parcels.has(parcel.id) && 
+                                          this.map[x][y] != null && 
+                                          this.map[x][y]!.parcel != null;
                     let destination = this.map[intention.x][intention.y];
                     const destionation_clear = destination ? (destination.agentID === null) : false;
 
-                    const n_others = detect_agents(intention.x, intention.y, this);
-                    const too_many_intruders = n_others < 1;
+                    const enemy_gap = detect_agents(intention.x, intention.y, this);
+                    // An intruder is too close (at least 2 tile closer)
+                    const intruder_too_close = enemy_gap > 1;
 
                     const successful_simulation = this.simulate_intention();
 
-                    return parcel_exists && destionation_clear && too_many_intruders && successful_simulation;
+                    // console.log("EXISTS", this.parcels.has(parcel.id), this.map[x][y] != null,
+                    //     this.map[x][y]!.parcel != null)
+                    // console.log("NO REASON", parcel_exists, destionation_clear, intruder_too_close, successful_simulation)
+                    return parcel_exists && destionation_clear && intruder_too_close && successful_simulation;
                 }
             }
         } else {
             return false;
         }
     }
-
 
     remove_parcel(parcel_id: string) {
         // TODO: Remove from agent.carry
@@ -360,9 +413,11 @@ export class Agent {
             let y = Math.round(this.y);
             for (const action of this.current_intention.currentPlan) {
                 [x, y] = this.next_position(x, y, action);
-                if (this.map[x][y] != null) {
-                    if (this.map[x][y]!.agentID != null) {
-                        return false;
+                if (x >= 0 && x < this.map_size[0] && y >= 0 && y < this.map_size[1]) {
+                    if (this.map[x][y] != null) {
+                        if (this.map[x][y]!.agentID != null) {
+                            return false;
+                        }
                     }
                 }
             }
@@ -390,6 +445,26 @@ export class Agent {
             default: {
                 return [x,y];
             }
+        }
+    }
+
+
+    forget_agent(x: number, y: number, a: AgentDesciption) {
+        let my_x = Math.round(this.x);
+        let my_y = Math.round(this.y);
+        const vision_distance = this.config.AGENTS_OBSERVATION_DISTANCE;
+
+        // Forget an agent if no more visible
+        if (Math.abs(my_x - x) + Math.abs(my_y - y) > vision_distance) {
+            if (this.map[x][y]!.agentID === a.id) {
+                this.map[x][y]!.agentID = null;
+                this.agents.delete(a.id);
+            }
+        } else {
+            // If still visible postpone
+            setTimeout(() => {
+                this.forget_agent(x, y, a)
+            }, FORGET_AFTER)
         }
     }
 

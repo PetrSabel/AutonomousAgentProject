@@ -1,6 +1,6 @@
 import { io } from "socket.io-client"
 import { Tile, TileInfo, AgentDesciption, ParcelInfo } from "./types"
-import { Agent } from "./agent";
+import { Agent, FORGET_AFTER } from "./agent";
 
 export { set_agent_listeners, create_socket, set_initial_listeners }
 
@@ -116,33 +116,68 @@ function set_agent_listeners(socket: any, agent: Agent) {
     // TODO: try to predict moves
     socket.on("agents sensing", (agents: AgentDesciption[]) => {
         // console.log("agents sensing", agents)
+        // Removes old beliefs
+        const vision_distance: number | "infinite" = agent.config.AGENTS_OBSERVATION_DISTANCE;
+        if (vision_distance === "infinite") {
+            let to_delete: string[] = []
+            for (let agent_id of agent.agents.keys()) {
+                // If a parcel from beliefs is not seen anymore
+                if (agents.findIndex((x) => x.id === agent_id) === -1) {
+                    to_delete.push(agent_id);
+                }
+            }
+
+            for (let id of to_delete) {
+                agent.agents.delete(id);
+            }
+        } else {
+            let to_delete: string[] = []
+            for (let ag of agent.agents.values()) {
+                // If an agent from beliefs is not seen anymore
+                if (Math.abs(ag.x - agent.x) + Math.abs(ag.y - agent.y) <= vision_distance) {
+                    if (agents.findIndex((x) => x.id === ag.id) === -1) {
+                        to_delete.push(agent.id);
+                    }
+                }
+            }
+
+            for (let id of to_delete) {
+                agent.agents.delete(id);
+            }
+        }
+
+        // Updates agents information
         for (let a of agents) {
             // If some other agent
             if (a.id !== agent.id) {
                 // TODO: consider 2 cell when moving
-
-                if (agent.agents.has(a.id)) {
-                    let intruder: AgentDesciption = agent.agents.get(a.id)!;
-                    let x = Math.round(intruder.x)
-                    let y = Math.round(intruder.y) 
-                    
-                    agent.map[x][y] = null 
-                }
-
                 let x = Math.round(a.x)
                 let y = Math.round(a.y)
 
-                // Remember the agent in that position for 1 sec
+                // Remove old position
+                if (agent.agents.has(a.id)) {
+                    let intruder: AgentDesciption = agent.agents.get(a.id)!;
+                    let old_x = Math.round(intruder.x)
+                    let old_y = Math.round(intruder.y) 
+                    
+                    agent.map[old_x][old_y]!.agentID = null 
+                } else {
+                    // Save new agent
+                    agent.agents.set(a.id, a);
+                }
+
+                // Remember the agent in that position for a bit
                 agent.map[x][y]!.agentID = a.id;
+
+
                 setTimeout(() => {
-                    if (agent.map[x][y]!.agentID === a.id) {
-                        agent.map[x][y]!.agentID = null 
-                    }
-                    agent.agents.delete(a.id);
-                }, 1000) 
+                    agent.forget_agent(x, y, a)
+                }, FORGET_AFTER) 
             }
         }
         // TODO: consider if they are moving
+
+        
     });
 
     // Agent is notified when new parcel appears or reward changes
@@ -162,20 +197,50 @@ function set_agent_listeners(socket: any, agent: Agent) {
         //     }
         // }
 
-        // Update belief
+        // Removes old beliefs
+        const vision_distance: number | "infinite" = agent.config.PARCELS_OBSERVATION_DISTANCE;
+        if (vision_distance === "infinite") {
+            let to_delete: string[] = []
+            for (let parcel_id of agent.parcels.keys()) {
+                // If a parcel from beliefs is not seen anymore
+                if (parcels.findIndex((p) => p.id === parcel_id) === -1) {
+                    to_delete.push(parcel_id);
+                }
+            }
+
+            for (let id of to_delete) {
+                agent.parcels.delete(id);
+            }
+        } else {
+            let to_delete: string[] = []
+            for (let parcel of agent.parcels.values()) {
+                // If a parcel from beliefs is not seen anymore
+                if (Math.abs(parcel.x - agent.x) + Math.abs(parcel.y - agent.y) <= vision_distance) {
+                    if (parcels.findIndex((p) => p.id === parcel.id) === -1) {
+                        to_delete.push(parcel.id);
+                    }
+                }
+            }
+
+            for (let id of to_delete) {
+                agent.parcels.delete(id);
+            }
+        }
+
+        // Updates beliefs
         for (let parcel of parcels) {
             if (!parcel.carriedBy) {
                 // New parcel => new desire
                 if (!agent.parcels.has(parcel.id)) {
                     agent.new_desires.push({
                         description: "pickup",
-                        parcel: parcel
+                        parcel: parcel,
+                        tries_number: 0,
                     })
                 }
 
                 // Save parcel
                 agent.update_parcel(parcel)
-                
             } else {
                 agent.remove_parcel(parcel.id)
             }
@@ -217,11 +282,6 @@ function set_agent_listeners(socket: any, agent: Agent) {
     });
 
 }
-// const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
-
-// export function number_to_direction(index: number): Direction {
-//     return DIRECTIONS[ index % DIRECTIONS.length ];
-// }
 
 
 // TODO: attach planning to parcel sense, add variable to indicate whether process is still going
