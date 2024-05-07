@@ -103,12 +103,17 @@ export class Agent {
                 for (let parcel of this.parcels.values()) {
                     parcel.reward -= 1;
                 }
+                for (let parcel of this.carry) {
+                    parcel.reward -= 1;
+                }
+
                 // Removes expired parcels
                 this.parcels.forEach((p, id, _) => {
                     if (p.reward < 1) {
                         this.remove_parcel(id)
                     }
                 })
+                this.carry.filter((p) => p.reward > 0);
 
             }, decay_time)
 
@@ -234,8 +239,8 @@ export class Agent {
 
             res.push(intention)
         }
-        this.new_desires = []
-        this.new_desires.length = 0
+        this.new_desires = [];
+        this.new_desires.length = 0;
 
         return res;
     }
@@ -266,17 +271,26 @@ export class Agent {
         this.blocked = false 
         this.current_intention = intention;
         console.log("EXECUTING", intention.desire.description, intention.x, intention.y)
-        // console.log("PLAN", intention.currentPlan)
+        //     "\nPLAN", intention.currentPlan
+        // )
         // console.log("AGENTS", this.agents)
+        // for (let row of this.map) {
+        //     for (let tile of row) {
+        //         if (tile?.agentID) {
+        //             console.log("HERE", tile)
+        //         }
+        //     }
+        // }
         // console.log("PLAN=", intention.currentPlan)
 
+        let reachable: boolean;
         do {
             // console.log("BEFORE REACT")
             await this.reactive_behavior();
             // console.log("AFTER REACT")
 
             if (this.new_desires.length > 0) {
-                // console.log("NEW DESIRES FOUND", this.new_desires)
+                console.log("NEW DESIRES FOUND") // , this.new_desires
                 let new_options = this.get_new_options()
                 let filtered = this.filterOptions(new_options)
 
@@ -288,9 +302,9 @@ export class Agent {
                 let first = filtered.pop()
                 if (first) {
                     if (this.current_intention == undefined) {
-                        this.current_intention = first
+                        this.current_intention = first;
                     } else if (first.estimateProfit() > this.current_intention.estimateProfit()) {
-                        // console.log("CHANGED")
+                        console.log("CHANGED")
                         this.current_intention = first 
                     } else {
                         // console.log("NOT CHANGED")
@@ -301,17 +315,14 @@ export class Agent {
 
             await this.current_intention.step(this);
             // console.log("STEP")
-            // if (this.check_reachable()) {
-                
-            //     console.log("INTENTION ACHIEVED")
-            // } else {
-            //     console.log("NOT REACHABLE")
-            //     return;
-            // }
-        } while (this.current_intention.executing && !this.blocked && this.check_reachable())
+
+            reachable = this.current_intention.executing && !this.blocked && this.check_reachable();
+        } while (reachable)
+        
+        // console.error("FINISH", this.current_intention.executing, !this.blocked, this.check_reachable())
 
         // Give a possibility to update beliefs (asynchronously)
-        // await new Promise(res => setTimeout(res, 50));
+        await new Promise(res => setTimeout(res, 50));
     }
 
     async reactive_behavior() {
@@ -331,12 +342,13 @@ export class Agent {
 
     // Returns whether the destination is accesible
     check_reachable(): boolean {
-        const intention = this.current_intention;
+        let intention = this.current_intention;
         if (intention) {
             switch (intention.desire.description) {
-                case "explore":
+                case "explore": {
                     const successful_simulation = this.simulate_intention();
                     return successful_simulation;
+                }
                 case "deliver": {
                     // Check if the delivery zone is free
                     let destination = this.map[intention.x][intention.y];
@@ -364,7 +376,7 @@ export class Agent {
                     // console.log("EXISTS", this.parcels.has(parcel.id), this.map[x][y] != null,
                     //     this.map[x][y]!.parcel != null)
                     // console.log("NO REASON", parcel_exists, destionation_clear, intruder_too_close, successful_simulation)
-                    return parcel_exists && destionation_clear && intruder_too_close && successful_simulation;
+                    return parcel_exists && destionation_clear && !intruder_too_close && successful_simulation;
                 }
             }
         } else {
@@ -411,7 +423,7 @@ export class Agent {
         if (this.current_intention) {
             let x = Math.round(this.x);
             let y = Math.round(this.y);
-            for (const action of this.current_intention.currentPlan) {
+            for (let action of this.current_intention.currentPlan.slice()) {
                 [x, y] = this.next_position(x, y, action);
                 if (x >= 0 && x < this.map_size[0] && y >= 0 && y < this.map_size[1]) {
                     if (this.map[x][y] != null) {
@@ -450,6 +462,7 @@ export class Agent {
 
 
     forget_agent(x: number, y: number, a: AgentDesciption) {
+        // console.error("FORGETTING", x, y, a.id);
         let my_x = Math.round(this.x);
         let my_y = Math.round(this.y);
         const vision_distance = this.config.AGENTS_OBSERVATION_DISTANCE;
@@ -457,14 +470,34 @@ export class Agent {
         // Forget an agent if no more visible
         if (Math.abs(my_x - x) + Math.abs(my_y - y) > vision_distance) {
             if (this.map[x][y]!.agentID === a.id) {
-                this.map[x][y]!.agentID = null;
-                this.agents.delete(a.id);
+                // this.map[x][y]!.agentID = null;
+                // this.agents.delete(a.id);
+                this.delete_agent(a);
             }
+        } else if (this.map[x][y]!.agentID == null) {
+            // If already forgot => OK
         } else {
-            // If still visible postpone
+            // If still visible and present postpone
             setTimeout(() => {
                 this.forget_agent(x, y, a)
             }, FORGET_AFTER)
+        }
+    }
+
+    delete_agent(a: AgentDesciption) {
+        if (this.agents.has(a.id)) {
+            // let x = Math.round(a.x)
+            // let y = Math.round(a.y)
+
+            for (let x = 0; x < this.map_size[0]; x += 1) {
+                for (let y = 0; y < this.map_size[1]; y += 1){
+                    if (this.map[x][y] != null && this.map[x][y]!.agentID === a.id) {
+                        this.map[x][y]!.agentID = null;
+                    }
+                }
+            }
+
+            this.agents.delete(a.id);
         }
     }
 

@@ -11,6 +11,16 @@ const EXPLORE_COST: number = 0.1;
 const DELIVERY_DISCOUNT: number = 0.5;
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
 
+function shuffle<T>(a: Array<T>) {
+    let j: number, x: T, i: number;
+    for (i = a.length - 1; i > 0; i--) {
+        j = Math.floor(Math.random() * (i + 1));
+        x = a[i];
+        a[i] = a[j];
+        a[j] = x;
+    }
+    return a;
+}
 
 function number_to_direction(index: number): Direction {
     return DIRECTIONS[ index % DIRECTIONS.length ];
@@ -124,7 +134,7 @@ function detect_agents(x: number, y: number, agent: Agent): number {
         generate_air_distance(x, y), generate_exact_position(x, y));
     const my_distance = moves ? moves.length : 100_000;
     
-    for (const intruder of agent.agents.values()) {
+    for (let intruder of agent.agents.values()) {
         let [moves, _] = Astar(map, agent.map_size, intruder.x, intruder.y,
             generate_air_distance(x, y), generate_exact_position(x, y));
 
@@ -200,5 +210,6 @@ function compute_dense_tiles(map: Tile[][]) {
         })
     }
 
-    return maxTruePoints.reverse().slice(0, Math.floor(maxTruePoints.length * 0.3));
+    let res = maxTruePoints.reverse().slice(0, Math.floor(maxTruePoints.length * 0.3));
+    return shuffle(res);
 }

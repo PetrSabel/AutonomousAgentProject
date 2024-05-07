@@ -10,10 +10,10 @@ const token = LOCAL_SERVER? config.local.token : config.remote.token;
 console.log("The server at ", host)
 
 const socket = create_socket(host, token)
-set_initial_listeners(socket)
+// set_initial_listeners(socket)
 
 // Creates the agent when possible
-function initialize_agent() {
+export function initialize_agent() {
     console.log("TRYING")
     if (map && map_config && map_size && personal_info) {
         const agent = new Agent(personal_info.name, personal_info.id, map, map_size, map_config, 
@@ -28,7 +28,7 @@ function initialize_agent() {
 
 }
 
-initialize_agent();
+// initialize_agent();
 
 
 

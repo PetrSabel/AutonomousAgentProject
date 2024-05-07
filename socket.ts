@@ -1,6 +1,7 @@
 import { io } from "socket.io-client"
 import { Tile, TileInfo, AgentDesciption, ParcelInfo } from "./types"
 import { Agent, FORGET_AFTER } from "./agent";
+import { initialize_agent } from "./main";
 
 export { set_agent_listeners, create_socket, set_initial_listeners }
 
@@ -19,11 +20,13 @@ function create_socket(host: string, token: string) {
     // Initial listeners (executed only once)
     socket.on("connect", () => {
         console.log( "socket connect", socket.id );
+        set_initial_listeners(socket);
+        initialize_agent();
     });
 
     socket.on("disconnect", () => {
         socket.removeAllListeners();
-        console.log( "socket disconnect", socket.id );
+        console.log( "socket disconnect");
     });
 
     // Not very usefull listeners
@@ -119,30 +122,30 @@ function set_agent_listeners(socket: any, agent: Agent) {
         // Removes old beliefs
         const vision_distance: number | "infinite" = agent.config.AGENTS_OBSERVATION_DISTANCE;
         if (vision_distance === "infinite") {
-            let to_delete: string[] = []
-            for (let agent_id of agent.agents.keys()) {
-                // If a parcel from beliefs is not seen anymore
-                if (agents.findIndex((x) => x.id === agent_id) === -1) {
-                    to_delete.push(agent_id);
+            let to_delete: AgentDesciption[] = []
+            for (let agent_desc of agent.agents.values()) {
+                // If an agent from beliefs is not seen anymore
+                if (agents.findIndex((x) => x.id === agent_desc.id) === -1) {
+                    to_delete.push(agent_desc);
                 }
             }
 
-            for (let id of to_delete) {
-                agent.agents.delete(id);
+            for (let desc of to_delete) {
+                agent.delete_agent(desc);
             }
         } else {
-            let to_delete: string[] = []
+            let to_delete: AgentDesciption[] = []
             for (let ag of agent.agents.values()) {
                 // If an agent from beliefs is not seen anymore
                 if (Math.abs(ag.x - agent.x) + Math.abs(ag.y - agent.y) <= vision_distance) {
                     if (agents.findIndex((x) => x.id === ag.id) === -1) {
-                        to_delete.push(agent.id);
+                        to_delete.push(ag);
                     }
                 }
             }
 
-            for (let id of to_delete) {
-                agent.agents.delete(id);
+            for (let ag of to_delete) {
+                agent.delete_agent(ag);
             }
         }
 
@@ -160,7 +163,7 @@ function set_agent_listeners(socket: any, agent: Agent) {
                     let old_x = Math.round(intruder.x)
                     let old_y = Math.round(intruder.y) 
                     
-                    agent.map[old_x][old_y]!.agentID = null 
+                    agent.map[old_x][old_y]!.agentID = null;
                 } else {
                     // Save new agent
                     agent.agents.set(a.id, a);
@@ -168,7 +171,6 @@ function set_agent_listeners(socket: any, agent: Agent) {
 
                 // Remember the agent in that position for a bit
                 agent.map[x][y]!.agentID = a.id;
-
 
                 setTimeout(() => {
                     agent.forget_agent(x, y, a)
@@ -215,7 +217,7 @@ function set_agent_listeners(socket: any, agent: Agent) {
             let to_delete: string[] = []
             for (let parcel of agent.parcels.values()) {
                 // If a parcel from beliefs is not seen anymore
-                if (Math.abs(parcel.x - agent.x) + Math.abs(parcel.y - agent.y) <= vision_distance) {
+                if (Math.abs(parcel.x - agent.x) + Math.abs(parcel.y - agent.y) <= vision_distance -1) {
                     if (parcels.findIndex((p) => p.id === parcel.id) === -1) {
                         to_delete.push(parcel.id);
                     }
@@ -236,7 +238,7 @@ function set_agent_listeners(socket: any, agent: Agent) {
                         description: "pickup",
                         parcel: parcel,
                         tries_number: 0,
-                    })
+                    });
                 }
 
                 // Save parcel
