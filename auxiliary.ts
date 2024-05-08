@@ -69,15 +69,22 @@ function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
             // Goes to the point where more other points are visible
             //  Greedy exploring
 
-            let choice = agent.dense_tiles.shift()!;
+            // let choice = agent.dense_tiles.shift()!;
+
+            // Chooses the most distant dense point
+            let choice: Point = agent.dense_tiles.reduce((prev, curr) => {
+                if (Math.abs(agent.x - prev.x) + Math.abs(agent.y - prev.y) > Math.abs(agent.x - prev.x) + Math.abs(agent.y - prev.y)) {
+                    return curr;
+                } else {
+                    return prev;
+                }
+            }, agent.get_coor());
+
             if (choice == undefined) {
                 console.error("HEEEEERE")
-                // for(let i = 0; true; i++) {
-                // }
-            } else {
-                // console.log("CHOICE", choice)
+                choice = agent.get_coor();
             }
-            agent.dense_tiles.push(choice);
+            // agent.dense_tiles.push(choice);
 
             [new_plan, coor] = Astar(agent.map, agent.map_size, agent.x, agent.y,
                     generate_air_distance(choice.x, choice.y),

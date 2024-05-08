@@ -501,6 +501,10 @@ export class Agent {
         }
     }
 
+    get_coor(): Point {
+        return { x:Math.round(this.x), y: Math.round(this.y) };
+    }
+
     // TODO: if action is blocked try to replan, maybe add a second plan to each intention
     //      OR save the search variables somewhere
     //      maybe requires to store the current intention

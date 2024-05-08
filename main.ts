@@ -4,12 +4,13 @@ import { create_socket, map, map_config, map_size, personal_info, set_initial_li
 
 const LOCAL_SERVER: boolean = true;
 
+const AGENT_NAME: string = "Autonomix";
 const host = LOCAL_SERVER? config.local.host : config.remote.host;
 const token = LOCAL_SERVER? config.local.token : config.remote.token;
 
 console.log("The server at ", host)
 
-const socket = create_socket(host, token)
+const socket = create_socket(host + "?name=" + AGENT_NAME, token)
 // set_initial_listeners(socket)
 
 // Creates the agent when possible

@@ -100,6 +100,8 @@ function set_initial_listeners(socket: any) {
 
 }
 
+// TODO: check ALWAYS if coordinates are inside the boundaries
+
 
 function set_agent_listeners(socket: any, agent: Agent) {
     // Set new event handlers 
@@ -163,18 +165,22 @@ function set_agent_listeners(socket: any, agent: Agent) {
                     let old_x = Math.round(intruder.x)
                     let old_y = Math.round(intruder.y) 
                     
-                    agent.map[old_x][old_y]!.agentID = null;
+                    if (agent.map[old_x][old_y]) {
+                        agent.map[old_x][old_y]!.agentID = null;
+                    }
                 } else {
                     // Save new agent
                     agent.agents.set(a.id, a);
                 }
 
                 // Remember the agent in that position for a bit
-                agent.map[x][y]!.agentID = a.id;
+                if (agent.map[x][y]) {
+                    agent.map[x][y]!.agentID = a.id;
 
-                setTimeout(() => {
-                    agent.forget_agent(x, y, a)
-                }, FORGET_AFTER) 
+                    setTimeout(() => {
+                        agent.forget_agent(x, y, a)
+                    }, FORGET_AFTER) 
+                }
             }
         }
         // TODO: consider if they are moving
