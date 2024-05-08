@@ -73,7 +73,7 @@ function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
 
             // Chooses the most distant dense point
             let choice: Point = agent.dense_tiles.reduce((prev, curr) => {
-                if (Math.abs(agent.x - prev.x) + Math.abs(agent.y - prev.y) > Math.abs(agent.x - prev.x) + Math.abs(agent.y - prev.y)) {
+                if (Math.abs(agent.x - curr.x) + Math.abs(agent.y - curr.y) > Math.abs(agent.x - prev.x) + Math.abs(agent.y - prev.y)) {
                     return curr;
                 } else {
                     return prev;

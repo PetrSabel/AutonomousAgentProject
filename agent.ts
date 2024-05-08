@@ -123,7 +123,6 @@ export class Agent {
         }
     }
 
-    // TODO: do the same for y
     get x () {
         return Math.round(this.#x);
     }
