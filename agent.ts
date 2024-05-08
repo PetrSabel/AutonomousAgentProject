@@ -12,8 +12,8 @@ export class Agent {
     map_size: [number, number];
 
     // Current information
-    x: number;
-    y: number;
+    #x: number;
+    #y: number;
     score: number;
     parcels: Map<string, ParcelInfo>; // TODO: split in 2 (real and expected)
     agents: Map<string, AgentDesciption>;
@@ -49,8 +49,8 @@ export class Agent {
         // Sets minimal required information
         this.map = map;
         this.map_size = map_size;
-        this.x = x;
-        this.y = y;
+        this.#x = x;
+        this.#y = y;
         this.id = id;
         this.name = name;
         this.config = map_config;
@@ -121,6 +121,23 @@ export class Agent {
         } else {
             this.time_to_decay = 1_000_000;
         }
+    }
+
+    // TODO: do the same for y
+    get x () {
+        return Math.round(this.#x);
+    }
+
+    set x (x: number) {
+        this.#x = x;
+    }
+
+    get y () {
+        return Math.round(this.#y);
+    }
+
+    set y (y: number) {
+        this.#y = y;
     }
 
     start() {
