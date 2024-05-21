@@ -1,5 +1,5 @@
 import { io } from "socket.io-client"
-import { Tile, TileInfo, AgentDesciption, ParcelInfo } from "./types"
+import { Tile, TileInfo, AgentDesciption, ParcelInfo } from "../types"
 import { Agent, FORGET_AFTER } from "./agent";
 import { initialize_agent } from "./main";
 
@@ -31,15 +31,15 @@ function create_socket(host: string, token: string) {
 
     // Not very usefull listeners
     // Obtain singular tile
-    socket.on("tile", (x: number, y: number, delivery: boolean, parcelSpawner: boolean) => {
-        let data: TileInfo = {x, y, delivery, parcelSpawner}
-        console.log("tile", data)
-    });
+    // socket.on("tile", (x: number, y: number, delivery: boolean, parcelSpawner: boolean) => {
+    //     let data: TileInfo = {x, y, delivery, parcelSpawner}
+    //     console.error("tile", data)
+    // });
 
     // Obtain description of unaccessible tiles
-    socket.on("not_tile", (x: number, y: number) => {
-        console.log("not tile", x, y)
-    });
+    // socket.on("not_tile", (x: number, y: number) => {
+    //     console.error("not tile", x, y)
+    // });
 
     return socket;
 }
@@ -52,16 +52,13 @@ let personal_info: {x: number, y: number, id: string, name: string} | undefined 
 export { map, map_size, map_config, personal_info }
 
 function set_initial_listeners(socket: any) {
-    // Obtain all tiles
+    // Obtains all tiles
     socket.on("map", (x: number, y: number, data: TileInfo[]) => {
-        console.log("map", data)
+        // console.log("map", data)
         // agent.map = data; // TODO: remap values
         let new_map = new Array();
         for (let i = 0; i < x; i++) {
             new_map.push(new Array(y));
-            // for (let j = 0; j < y; j++) {
-            //     agent.map[i].push(undefined)
-            // }
         }
         
         for (let tile of data) {
@@ -96,8 +93,12 @@ function set_initial_listeners(socket: any) {
             id: me.id,
             name: me.name,
         }
+        console.log("Agent name = ", me.name);
     });
 
+    socket.once( 'token', (token: string) => {
+        console.log( "New token = " + token)
+    } );
 }
 
 // TODO: check ALWAYS if coordinates are inside the boundaries

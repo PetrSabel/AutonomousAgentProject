@@ -1,5 +1,5 @@
 import { Agent } from "./agent";
-import { default as config } from "./config"
+import { default as config } from "../config"
 import { create_socket, map, map_config, map_size, personal_info } from "./socket";
 
 const LOCAL_SERVER: boolean = true;

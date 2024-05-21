@@ -1,5 +1,5 @@
 import { ICompare, PriorityQueue } from "@datastructures-js/priority-queue";
-import { Action, Tile } from "./types";
+import { Action, Tile } from "../types";
 
 export type State = {
     x: number, 

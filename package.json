@@ -5,12 +5,13 @@
   "main": "main.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node main.ts"
+    "single": "ts-node SingleAgent/main.ts"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@datastructures-js/priority-queue": "^6.3.1",
+    "@unitn-asa/pddl-client": "^0.0.37",
     "socket.io-client": "^4.7.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.2"

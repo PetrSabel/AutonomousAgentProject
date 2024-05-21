@@ -2,7 +2,7 @@ import { Agent } from "./agent";
 import { Astar } from "./astar";
 import { generate_exact_position, isDelivery } from "./goals";
 import { generate_air_distance, nearestTiles } from "./heuristics";
-import { Action, Desire, Direction, Plan, Tile } from "./types";
+import { Action, Desire, Direction, Plan, Tile } from "../types";
 
 export { plan, EXPLORE_COST, compute_dense_tiles, Point, detect_agents }
 
@@ -70,6 +70,8 @@ function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
             //  Greedy exploring
 
             // let choice = agent.dense_tiles.shift()!;
+
+            // TODO: If there is some parcel move to it instead of explore
 
             // Chooses the most distant dense point
             let choice: Point = agent.dense_tiles.reduce((prev, curr) => {
@@ -164,6 +166,22 @@ function compute_dense_tiles(map: Tile[][]) {
     const rows = map.length;
     const cols = map[0].length;
 
+    function getTrueCount(point: Point): number {
+        const { x, y } = point;
+        let trueCount = 0;
+        for (let m = -2; m <= 2; m++) {
+            for (let n = -2; n <= 2; n++) {
+                const dx = x + m;
+                const dy = y + n;
+                if (map[dx] && map[dx][dy] !== null) {
+                    trueCount += map[dx][dy]?.spawnable? 1 : 0;
+                }
+            }
+        }
+        return trueCount;
+    }
+
+
     // TODO: move this computation to "map" handler and store inside the agent
     let maxTruePoints: Point[] = [];
 
@@ -194,20 +212,7 @@ function compute_dense_tiles(map: Tile[][]) {
                 
             }
             
-            function getTrueCount(point: Point): number {
-                const { x, y } = point;
-                let trueCount = 0;
-                for (let m = -2; m <= 2; m++) {
-                    for (let n = -2; n <= 2; n++) {
-                        const dx = x + m;
-                        const dy = y + n;
-                        if (map[dx] && map[dx][dy] !== null) {
-                            trueCount += map[dx][dy]?.spawnable? 1 : 0;
-                        }
-                    }
-                }
-                return trueCount;
-            }
+            
         }
     }
 
@@ -217,6 +222,8 @@ function compute_dense_tiles(map: Tile[][]) {
         })
     }
 
-    let res = maxTruePoints.reverse().slice(0, Math.floor(maxTruePoints.length * 0.3));
+    // TODO: retain only tiles with some spawn
+    let res = maxTruePoints.filter((p) => getTrueCount(p) > 0);
+    res = res.reverse().slice(0, Math.floor(maxTruePoints.length * 0.3));
     return shuffle(res);
 }

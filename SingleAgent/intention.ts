@@ -1,4 +1,4 @@
-import { Desire, Plan } from "./types";
+import { Desire, Plan } from "../types";
 import { Agent } from "./agent"
 import { plan } from "./auxiliary";
 

@@ -1,12 +1,15 @@
 import { PriorityQueue } from "@datastructures-js/priority-queue";
 import { Intention } from "./intention";
-import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption } from "./types"
+import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption } from "../types"
 import { EXPLORE_COST, Point, compute_dense_tiles, detect_agents } from "./auxiliary";
 import { set_agent_listeners } from "./socket";
 
 export const FORGET_AFTER: number = 500; // ms
 
 // TODO: declare function for each of agents actions (communication lacks)
+// TODO: idea is to bump into others when there are too many agents on the map (or maybe save agents for more time)
+// TODO: make all asyncronous and launch principal loop which should do all actions (when available)
+// TODO: instead of explore try to pass through all dense tiles (Planning at the beginning)
 export class Agent {
     map: Tile[][];  // matrix[x,y] of Tiles
     map_size: [number, number];
@@ -286,7 +289,8 @@ export class Agent {
     async executeIntention(intention: Intention) {
         this.blocked = false 
         this.current_intention = intention;
-        console.log("EXECUTING", intention.desire.description, intention.x, intention.y)
+        console.log("EXECUTING", intention.desire.description, intention.x, intention.y,
+                    "From", this.x, this.y)
         //     "\nPLAN", intention.currentPlan
         // )
         // console.log("AGENTS", this.agents)

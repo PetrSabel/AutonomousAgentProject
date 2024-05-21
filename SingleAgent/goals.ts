@@ -1,4 +1,4 @@
-import { Tile } from "./types";
+import { Tile } from "../types";
 
 // Goal functions
 const isParcel = (tile: Tile) => {
