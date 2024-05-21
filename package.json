@@ -1,11 +1,12 @@
 {
   "name": "deliveroo",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "The \"Autonomous Software Agent\" project ",
   "main": "main.ts",
+  "type":"module",
+  "types": "./@types",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "single": "ts-node SingleAgent/main.ts"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
