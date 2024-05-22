@@ -1,14 +1,15 @@
 declare module '@unitn-asa/pddl-client' {
-    export function onlineSolver(pddlDomain: any, pddlProblem: any): any
+    export function onlineSolver(pddlDomain: string, pddlProblem: string): Promise<string>
     
     export class PddlExecutor {
         constructor(...actions: PddlAction[])
-        exec(plan: any): Promise<void>
+        exec(plan: string): Promise<void>
     }
 
     export class PddlProblem {
-        constructor(name: string, objects: string, init: string[], goal: string)
-        toPddlString(): string[] 
+        constructor(name: string, objects: string, init: string, goal: string)
+        toPddlString(): string
+        saveToFile(): Promise<void>
     }
 
     export class Beliefset {
@@ -19,7 +20,7 @@ declare module '@unitn-asa/pddl-client' {
         removeObject(obj: string): void
         declare(fact: string, value?: boolean): boolean
         undeclare(fact: string): boolean
-        toPddlString(): string[]
+        toPddlString(): string
         check(positive: boolean, fact: string): boolean
     }
 
@@ -33,7 +34,7 @@ declare module '@unitn-asa/pddl-client' {
         parameters: string 
         precondition: string 
         effect: string 
-        executor: (x: any) => any 
+        executor: (action_desc: string) => any 
 
         constructor( name: string, parameters: string, precondition: string, effect: string, executor: any )
         toPddlString(): string

@@ -1,6 +1,7 @@
-import { Agent } from "./agent";
-import { default as config } from "../config"
-import { create_socket, map, map_config, map_size, personal_info } from "./socket";
+import { Agent } from "./agent.js";
+import { default as config } from "../config.js"
+import { create_socket, map, map_config, map_size, personal_info } from "./socket.js";
+import { DIRECTIONS } from "./auxiliary.js";
 
 const LOCAL_SERVER: boolean = true;
 
@@ -19,6 +20,10 @@ export function initialize_agent() {
     if (map && map_config && map_size && personal_info) {
         const agent = new Agent(personal_info.name, personal_info.id, map, map_size, map_config, 
             personal_info.x, personal_info.y, socket);
+        
+        // for (let dir of DIRECTIONS) {
+        //     console.log("TESTING", agent.next_position(agent.x, agent.y, dir), agent.get_coor(), dir)
+        // }
 
         agent.start()
     } else {

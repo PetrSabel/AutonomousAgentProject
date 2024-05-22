@@ -1,6 +1,6 @@
 import { Desire, Plan } from "../types";
 import { Agent } from "./agent"
-import { plan } from "./auxiliary";
+import { plan_intention } from "./auxiliary.js";
 
 // TODO: add time/tries spent for doing a task (to avoid forward-backward giggling)
 
@@ -24,7 +24,7 @@ export class Intention {
         this.desire = desire
         // TODO: suddivide intention in subintentions
         this.executing = false;
-        [this.currentPlan, this.cost, [this.x, this.y]] = plan(agent, desire)
+        [this.currentPlan, this.cost, [this.x, this.y]] = plan_intention(agent, desire)
         // this.secondPlan = undefined 
         this.planning = false 
     }

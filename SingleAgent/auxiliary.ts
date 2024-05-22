@@ -1,10 +1,10 @@
 import { Agent } from "./agent";
-import { Astar } from "./astar";
-import { generate_exact_position, isDelivery } from "./goals";
-import { generate_air_distance, nearestTiles } from "./heuristics";
+import { Astar } from "./astar.js";
+import { generate_exact_position, isDelivery } from "./goals.js";
+import { generate_air_distance, nearestTiles } from "./heuristics.js";
 import { Action, Desire, Direction, Plan, Tile } from "../types";
 
-export { plan, EXPLORE_COST, compute_dense_tiles, Point, detect_agents }
+export { plan_intention, EXPLORE_COST, compute_dense_tiles, Point, detect_agents, DIRECTIONS }
 
 const EXPLORE_COST: number = 0.1;
 // Delivery has a discount on move cost
@@ -28,7 +28,7 @@ function number_to_direction(index: number): Direction {
 
 // TODO: change "agent" with requested information
 // TODO: take a callback function, called each time new cost estimation is computed
-function plan(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
+function plan_intention(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
     let plan: Action[] = []
     let score: number = 0
     let new_plan: Action[] | undefined = undefined;

@@ -1,8 +1,13 @@
 {
     "compilerOptions": {
+        "outDir": "./ts-build/",
         "target": "ES2022",
         "module": "ES2022",
-        "moduleResolution": "Node"
+        "esModuleInterop": true,
+        "moduleResolution": "Node",
+        // "paths": {
+        //     "SingleAgent/*": ["./SingleAgent/*"]
+        // }
     },
     "ts-node": {
         "esm": true

@@ -1,8 +1,9 @@
 import { PriorityQueue } from "@datastructures-js/priority-queue";
-import { Intention } from "./intention";
+import { Intention } from "./intention.js";
 import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption } from "../types"
-import { EXPLORE_COST, Point, compute_dense_tiles, detect_agents } from "./auxiliary";
-import { set_agent_listeners } from "./socket";
+import { EXPLORE_COST, Point, compute_dense_tiles, detect_agents } from "./auxiliary.js";
+import { set_agent_listeners } from "./socket.js";
+import { plan } from "../Planning/plans.js";
 
 export const FORGET_AFTER: number = 500; // ms
 
@@ -144,6 +145,7 @@ export class Agent {
 
     start() {
         console.log("Launching agent!")
+        // plan(this, "at i t0_0") // TODO
         this.#loop()
     }
 

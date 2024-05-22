@@ -1,46 +1,80 @@
 import { onlineSolver, PddlExecutor, PddlProblem, Beliefset, PddlDomain, PddlAction } from "@unitn-asa/pddl-client";
+import { readFileSync } from "fs";
+import { Agent } from "../SingleAgent/agent.js";
+import { DIRECTIONS } from "../SingleAgent/auxiliary.js";
 
-async function main () {
+export async function plan(agent: Agent, goal: string) {
 
-    /** Problem */
+    /** BeliefSet */
     const myBeliefset = new Beliefset();
-    myBeliefset.declare( 'switched-off light1' );
-    myBeliefset.undeclare( 'switched-on light1' );
-    myBeliefset.declare( 'switched-off light2' );
+    // My info
+    myBeliefset.declare("me i")
+    myBeliefset.undeclare("scored i")
+    myBeliefset.declare("carry i") // If with declare/undeclare
+    let t = "t" + agent.x + "_" + agent.y 
+    myBeliefset.declare("at i " + t)
 
-    var pddlProblem = new PddlProblem(
-        'lights',
-        myBeliefset.objects.join(' '),
-        myBeliefset.toPddlString(),
-        'and (switched-on light1) (switched-on light2)'
-    );
+    // Map
+    for (let row of agent.map) {
+        for (let tile of row) {
+            if (tile) {
+                t = "t" + tile.x + "_" + tile.y 
+                myBeliefset.declare("tile " + t)
+
+                // Tile descriptions
+                if (tile.delivery) {
+                    myBeliefset.declare("delivery " + t)
+                }
+                if (tile.spawnable) {
+                    myBeliefset.declare("spawn " + t)
+                }
+                // Other agents positions
+                if (tile.agentID) {
+                    myBeliefset.undeclare("free " + t)
+                } else {
+                    myBeliefset.declare("free " + t)
+                }
+                
+                // Parcels
+                if (tile.parcel) {
+                    myBeliefset.declare("withparcel " + t)
+                }
+
+                // Moves
+                for (let dir of DIRECTIONS) {
+                    if (tile) {
+                        let [nx, ny] = agent.next_position(tile.x, tile.y, dir)
+
+                        if (agent.map[nx] != undefined && agent.map[nx][ny]) {
+                            let nt = "t" + nx + "_" + ny 
+                            myBeliefset.declare(dir + " " + t + " " + nt)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let init_situation = myBeliefset.toPddlString();
+    let objects = myBeliefset.objects;
+
+    // Problem 
+    let problem = new PddlProblem("first", objects.join("\n  "), init_situation, goal)
+    problem.saveToFile() // DEBUG
+
+    let problem_string = problem.toPddlString()
 
     /** Domain */
-    const lightOn = new PddlAction(
-        'lightOn',
-        '?l',
-        'and (switched-off ?l)',
-        'and (switched-on ?l) (not (switched-off ?l))',
-        async ( l ) => console.log( 'exec lightOn', l )
-    );
-    console.log( lightOn.toPddlString() )
-    console.log( PddlAction.tokenize( lightOn.precondition ) )
-    console.log( PddlAction.tokenize( lightOn.effect ) )
-    
-    var pddlDomain = new PddlDomain( 'lights', lightOn )
+    const DOMAIN_PATH = "Planning/domain-deliveroo.pddl"
+    const DOMAIN_STRING: string = readFileSync( DOMAIN_PATH, 'utf8');
 
+    
     /** Solve */
-    let problem = pddlProblem.toPddlString();
-    console.log( problem )
-    let domain = pddlDomain.toPddlString();
-    console.log( domain )
+    let plan = await onlineSolver(DOMAIN_STRING, problem_string)
+    console.log(plan)
 
-    var plan = await onlineSolver( domain, problem );
-    
     /** Execute */
-    const pddlExecutor = new PddlExecutor( lightOn );
-    pddlExecutor.exec( plan );
+    // const pddlExecutor = new PddlExecutor( lightOn );
+    // pddlExecutor.exec( plan );
 
 }
-
-main();
