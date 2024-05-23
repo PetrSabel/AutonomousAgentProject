@@ -7,26 +7,30 @@ import { plan_intention } from "./auxiliary.js";
 export class Intention {
     // The associated desire
     desire: Desire 
-    currentPlan: Plan
     // Optional plan in case of failure
     // secondPlan?: Plan  
     // Estimated profit of executing this intention
-    cost: number
     executing: boolean
     planning: boolean // TODO: idea is to compute one step for the most 
                                 // convenient Intention (usign priority queue)
                                 // and if it achieves the goal execute it
 
-    x: number 
-    y: number
+    currentPlan?: Plan
+    cost?: number
+    x?: number 
+    y?: number
 
-    constructor(agent: Agent, desire: Desire) {
+    constructor(desire: Desire) {
         this.desire = desire
         // TODO: suddivide intention in subintentions
         this.executing = false;
-        [this.currentPlan, this.cost, [this.x, this.y]] = plan_intention(agent, desire)
+        
         // this.secondPlan = undefined 
         this.planning = false 
+    }
+
+    async compute_plan(agent: Agent) {
+        [this.currentPlan, this.cost, [this.x, this.y]] = await plan_intention(agent, this.desire);
     }
 
     async step(agent: Agent) {
@@ -34,7 +38,7 @@ export class Intention {
             this.executing = true
         }
 
-        let action = this.currentPlan.shift()
+        let action = this.currentPlan!.shift()
         if (action) {
             // console.log("ACTION = ", action)
             try {
@@ -52,9 +56,16 @@ export class Intention {
                         // agent.blocked = true 
                         break;
                 
-                    default:
+                    case "left":
+                    case "right":
+                    case "up":
+                    case "down":
                         await agent.move(action)
                         break;
+
+                    default:
+                        console.error(action);
+                        throw new Error("UNRECOGNIZED COMMAND")
                 }
             } catch(e) {
                 // console.log("ACTION BLOCKED", e)

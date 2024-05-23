@@ -1,7 +1,7 @@
 import { Agent } from "./agent.js";
 import { default as config } from "../config.js"
 import { create_socket, map, map_config, map_size, personal_info } from "./socket.js";
-import { DIRECTIONS } from "./auxiliary.js";
+
 
 const LOCAL_SERVER: boolean = true;
 

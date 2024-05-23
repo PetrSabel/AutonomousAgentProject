@@ -1,9 +1,9 @@
 declare module '@unitn-asa/pddl-client' {
-    export function onlineSolver(pddlDomain: string, pddlProblem: string): Promise<string>
+    export function onlineSolver(pddlDomain: string, pddlProblem: string): Promise<{action: string}[] | void>
     
     export class PddlExecutor {
         constructor(...actions: PddlAction[])
-        exec(plan: string): Promise<void>
+        exec(plan: {action: string}[]): Promise<void>
     }
 
     export class PddlProblem {
@@ -34,7 +34,7 @@ declare module '@unitn-asa/pddl-client' {
         parameters: string 
         precondition: string 
         effect: string 
-        executor: (action_desc: string) => any 
+        executor: (action_desc: string) => void 
 
         constructor( name: string, parameters: string, precondition: string, effect: string, executor: any )
         toPddlString(): string

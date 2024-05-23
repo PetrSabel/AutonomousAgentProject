@@ -1,16 +1,14 @@
 import { PriorityQueue } from "@datastructures-js/priority-queue";
 import { Intention } from "./intention.js";
 import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption } from "../types"
-import { EXPLORE_COST, Point, compute_dense_tiles, detect_agents } from "./auxiliary.js";
+import { Point, compute_dense_tiles, detect_agents } from "./auxiliary.js";
 import { set_agent_listeners } from "./socket.js";
-import { plan } from "../Planning/plans.js";
 
 export const FORGET_AFTER: number = 500; // ms
 
 // TODO: declare function for each of agents actions (communication lacks)
 // TODO: idea is to bump into others when there are too many agents on the map (or maybe save agents for more time)
 // TODO: make all asyncronous and launch principal loop which should do all actions (when available)
-// TODO: instead of explore try to pass through all dense tiles (Planning at the beginning)
 export class Agent {
     map: Tile[][];  // matrix[x,y] of Tiles
     map_size: [number, number];
@@ -59,8 +57,7 @@ export class Agent {
         this.name = name;
         this.config = map_config;
 
-        this.socket = socket; // TODO: connect to actual socket and declare event listeners
-
+        this.socket = socket; 
         this.move_cost = this.config.MOVEMENT_DURATION/1000;
 
         // Initialize new run (supposing the agent does not know nothing)
@@ -90,7 +87,6 @@ export class Agent {
         
         const parcel_decay_time: string = this.config.PARCEL_DECADING_INTERVAL
 
-        // TODO: set decay time from configuration
         if (parcel_decay_time !== 'infinite') {
             let decay = parcel_decay_time.replace(/\D/g, '');
             console.log("Decay", decay)
@@ -145,12 +141,11 @@ export class Agent {
 
     start() {
         console.log("Launching agent!")
-        // plan(this, "at i t0_0") // TODO
         this.#loop()
     }
 
     createIntention(desire: Desire) {
-        return new Intention(this, desire);
+        return new Intention(desire);
     }
 
     changeIntention(new_intention: Intention) {
@@ -206,6 +201,13 @@ export class Agent {
 
             try {
                 let options = this.getOptions()
+
+                console.log("\n\nCOMPUTING", options.length ,"options.....")
+                // console.time("-------------------------------")
+                await Promise.all(options.map(opt => opt.compute_plan(this)));
+                // console.timeEnd("-------------------------------")
+                // console.log(options)
+                // await new Promise(res => setTimeout(res, 5000));
                 
                 let queue = this.filterOptions(options)
 
@@ -224,6 +226,8 @@ export class Agent {
                 console.error("Some error", e)
                 await new Promise(res => setTimeout(res, 100));
             }
+
+            // break;
         }
     }
 
@@ -242,7 +246,7 @@ export class Agent {
             })
         }
 
-        let optimal_cost: number = EXPLORE_COST;
+        // let optimal_cost: number = EXPLORE_COST;
         let res: Array<Intention> = new Array;
         for (let desire of this.desires) {
             let intention = this.createIntention(desire);
@@ -314,6 +318,11 @@ export class Agent {
             if (this.new_desires.length > 0) {
                 console.log("NEW DESIRES FOUND") // , this.new_desires
                 let new_options = this.get_new_options()
+
+                for (let option of new_options) {
+                    await option.compute_plan(this);
+                }
+
                 let filtered = this.filterOptions(new_options)
 
                 // console.log("NEW QUEUE")
@@ -338,7 +347,12 @@ export class Agent {
             await this.current_intention.step(this);
             // console.log("STEP")
 
-            reachable = this.current_intention.executing && !this.blocked && this.check_reachable();
+            const dumb = true;
+            if (dumb) {
+                reachable = this.current_intention.executing && !this.blocked;
+            } else {
+                reachable = this.current_intention.executing && !this.blocked && this.check_reachable();
+            }
         } while (reachable)
         
         // console.error("FINISH", this.current_intention.executing, !this.blocked, this.check_reachable())
@@ -445,7 +459,7 @@ export class Agent {
         if (this.current_intention) {
             let x = Math.round(this.x);
             let y = Math.round(this.y);
-            for (let action of this.current_intention.currentPlan.slice()) {
+            for (let action of this.current_intention.currentPlan!.slice()) {
                 [x, y] = this.next_position(x, y, action);
                 if (x >= 0 && x < this.map_size[0] && y >= 0 && y < this.map_size[1]) {
                     if (this.map[x][y] != null) {

@@ -2,15 +2,21 @@ import { onlineSolver, PddlExecutor, PddlProblem, Beliefset, PddlDomain, PddlAct
 import { readFileSync } from "fs";
 import { Agent } from "../SingleAgent/agent.js";
 import { DIRECTIONS } from "../SingleAgent/auxiliary.js";
+import { Action } from "../types.js";
 
-export async function plan(agent: Agent, goal: string) {
+export async function plan(agent: Agent, goal: string): Promise<Action[] | undefined> {
 
     /** BeliefSet */
     const myBeliefset = new Beliefset();
     // My info
     myBeliefset.declare("me i")
     myBeliefset.undeclare("scored i")
-    myBeliefset.declare("carry i") // If with declare/undeclare
+
+    if (goal === "scored i") {
+        myBeliefset.declare("carry i")
+    } else {
+        myBeliefset.undeclare("carry i")
+    }
     let t = "t" + agent.x + "_" + agent.y 
     myBeliefset.declare("at i " + t)
 
@@ -60,7 +66,7 @@ export async function plan(agent: Agent, goal: string) {
 
     // Problem 
     let problem = new PddlProblem("first", objects.join("\n  "), init_situation, goal)
-    problem.saveToFile() // DEBUG
+    // problem.saveToFile() // DEBUG
 
     let problem_string = problem.toPddlString()
 
@@ -70,11 +76,29 @@ export async function plan(agent: Agent, goal: string) {
 
     
     /** Solve */
-    let plan = await onlineSolver(DOMAIN_STRING, problem_string)
-    console.log(plan)
+    console.time("solve " + goal)
+    let plan = await onlineSolver(DOMAIN_STRING, problem_string);
+    console.timeEnd("solve " + goal)
+    // console.log(plan)
 
     /** Execute */
-    // const pddlExecutor = new PddlExecutor( lightOn );
-    // pddlExecutor.exec( plan );
+    let moves = [];
+    
+    if (plan) {
+        // Rewrite plan to the list of moves
+        for (let a of plan) {
+            if (a.action === "deliver"){
+                moves.push("putdown");
+            } else {
+                moves.push(a.action.toLowerCase())
+            }
+        }
 
+    } else {
+        console.log("IMPOSSIBLE INTENTION", goal);
+        return undefined;
+    }
+
+    console.log("PLAN", moves);
+    return moves;
 }

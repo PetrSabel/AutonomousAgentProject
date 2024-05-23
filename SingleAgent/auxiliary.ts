@@ -3,10 +3,12 @@ import { Astar } from "./astar.js";
 import { generate_exact_position, isDelivery } from "./goals.js";
 import { generate_air_distance, nearestTiles } from "./heuristics.js";
 import { Action, Desire, Direction, Plan, Tile } from "../types";
+import { plan } from "../Planning/plans.js";
+import { DPPL_PLANNING } from "../config.js";
 
-export { plan_intention, EXPLORE_COST, compute_dense_tiles, Point, detect_agents, DIRECTIONS }
+export { plan_intention, compute_dense_tiles, Point, detect_agents, DIRECTIONS }
 
-const EXPLORE_COST: number = 0.1;
+// const EXPLORE_COST: number = 0.1;
 // Delivery has a discount on move cost
 const DELIVERY_DISCOUNT: number = 0.5;
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
@@ -26,9 +28,60 @@ function number_to_direction(index: number): Direction {
     return DIRECTIONS[ index % DIRECTIONS.length ];
 }
 
+// Version Astar
+async function plan_and_coors_astar(agent: Agent, goal: "delivery" | Point): 
+        Promise<[Action[] | undefined, [number, number]]> {
+    if (goal == "delivery") {
+        return new Promise((res, rej) => {
+            try {
+                res(Astar(agent.map, agent.map_size, agent.x, agent.y, nearestTiles, isDelivery));
+            } catch {
+                rej("Some error in Astar")
+            }
+        });
+    } else {
+        return new Promise((res, rej) => {
+            try {
+                res(Astar(agent.map, agent.map_size, agent.x, agent.y,
+                        generate_air_distance(goal.x, goal.y),
+                        generate_exact_position(goal.x, goal.y)));
+            } catch {
+                rej("Some error in Astar")
+            }
+        });
+    }
+}
+
+// Version PDDL
+async function plan_and_coors_pddl(agent: Agent, goal: "delivery" | Point): 
+        Promise<[Action[] | undefined, [number, number]]> {
+
+    let p: Action[] | undefined;
+    if (goal == "delivery") {
+        p = await plan(agent, "scored i");
+    } else {
+        let t = "t" + goal.x + "_" + goal.y;
+        p = await plan(agent, "at " + "i " + t);
+    }
+
+    let pos: [number, number] = [agent.x, agent.y];
+
+    if (p) {
+        for (let a of p) {
+            pos = agent.next_position(pos[0], pos[1], a);
+        }
+    } else {
+        p = []
+    }
+
+    return [p, pos];
+}
+
+let plan_and_coors = DPPL_PLANNING ? plan_and_coors_pddl : plan_and_coors_astar;
+
 // TODO: change "agent" with requested information
 // TODO: take a callback function, called each time new cost estimation is computed
-function plan_intention(agent: Agent, desire: Desire): [Plan, number, [number, number]] {
+async function plan_intention(agent: Agent, desire: Desire): Promise<[Plan, number, [number, number]]> {
     let plan: Action[] = []
     let score: number = 0
     let new_plan: Action[] | undefined = undefined;
@@ -39,7 +92,8 @@ function plan_intention(agent: Agent, desire: Desire): [Plan, number, [number, n
         case "deliver": {
             // Find deliver tiles
             // Route to the nearest delivery zone
-            [new_plan, coor] = Astar(agent.map, agent.map_size, agent.x, agent.y, nearestTiles, isDelivery);
+            [new_plan, coor] = await plan_and_coors(agent, "delivery");
+            // Astar(agent.map, agent.map_size, agent.x, agent.y, nearestTiles, isDelivery);
 
             
             if (new_plan) {
@@ -59,6 +113,10 @@ function plan_intention(agent: Agent, desire: Desire): [Plan, number, [number, n
                 score = -1
             }
 
+            // Possible random choice for exploring
+            if (score < 0) {
+                score = Math.random()
+            }
             // Return obtained plan
             return [plan, score, coor]
         }
@@ -88,9 +146,10 @@ function plan_intention(agent: Agent, desire: Desire): [Plan, number, [number, n
             }
             // agent.dense_tiles.push(choice);
 
-            [new_plan, coor] = Astar(agent.map, agent.map_size, agent.x, agent.y,
-                    generate_air_distance(choice.x, choice.y),
-                    generate_exact_position(choice.x, choice.y));
+            [new_plan, coor] = await plan_and_coors(agent, {x: choice.x, y: choice.y});
+            // Astar(agent.map, agent.map_size, agent.x, agent.y,
+            //         generate_air_distance(choice.x, choice.y),
+            //         generate_exact_position(choice.x, choice.y));
 
             // Generate some plan
             if (new_plan){
@@ -100,14 +159,15 @@ function plan_intention(agent: Agent, desire: Desire): [Plan, number, [number, n
                 plan = [number_to_direction(Math.floor(Math.random()*4))];
             }
             
-            return [plan, EXPLORE_COST, coor];
+            return [plan, Math.random(), coor];
         }
         case "pickup": {
             // Find route to parcel
             const parcel = desire.parcel;
             // TODO: change goal function to exactPosition OR isParcel is better
-            [new_plan, coor] = Astar(agent.map, agent.map_size, agent.x, agent.y,
-                generate_air_distance(parcel.x, parcel.y), generate_exact_position(parcel.x, parcel.y));
+            [new_plan, coor] = await plan_and_coors(agent, {x: parcel.x, y: parcel.y});
+                // Astar(agent.map, agent.map_size, agent.x, agent.y,
+                // generate_air_distance(parcel.x, parcel.y), generate_exact_position(parcel.x, parcel.y));
             
             // TODO: more sophisticate score
             
@@ -122,9 +182,13 @@ function plan_intention(agent: Agent, desire: Desire): [Plan, number, [number, n
                 plan = new_plan
                 plan.push("pickup")
 
-                // console.log("PICKUP INTENTION", parcel, score, plan.length * agent.move_cost)
             } else {
                 score = -1
+            }
+
+            // Possible random choice for exploring
+            if (score < 0) {
+                score = Math.random()
             }
             
             // Return plan
