@@ -4,14 +4,16 @@ import { generate_exact_position, isDelivery } from "./goals.js";
 import { generate_air_distance, nearestTiles } from "./heuristics.js";
 import { Action, Desire, Direction, Plan, Tile } from "../types";
 import { plan } from "../Planning/plans.js";
-import { DPPL_PLANNING } from "../config.js";
+import { DPPL_PLANNING, DELIVERY_AMPLIFIER } from "../config.js";
 
-export { plan_intention, compute_dense_tiles, Point, detect_agents, DIRECTIONS }
+export { plan_intention, compute_spawn_tiles, compute_dense_tiles, Point, detect_agents, DIRECTIONS }
 
 // const EXPLORE_COST: number = 0.1;
 // Delivery has a discount on move cost
-const DELIVERY_DISCOUNT: number = 0.5;
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
+// Pickup options should be considered as good exploration options
+const RANDOM_PICKUP: number = 3;  // Factor to set preference of pickup over normal explore
+const DELIVERY_EVERY: number = 60;  // Specify how often the agent must deliver packages
 
 function shuffle<T>(a: Array<T>) {
     let j: number, x: T, i: number;
@@ -56,22 +58,45 @@ async function plan_and_coors_astar(agent: Agent, goal: "delivery" | Point):
 async function plan_and_coors_pddl(agent: Agent, goal: "delivery" | Point): 
         Promise<[Action[] | undefined, [number, number]]> {
 
-    let p: Action[] | undefined;
-    if (goal == "delivery") {
-        p = await plan(agent, "scored i");
+    let key = agent.x + " " + agent.y + " ";
+    if (goal === "delivery") {
+        key += goal 
     } else {
-        let t = "t" + goal.x + "_" + goal.y;
-        p = await plan(agent, "at " + "i " + t);
+        key += (goal.x + " " + goal.y)
+    }
+
+    let p: Action[] | undefined;
+    // Check cache
+    if (agent.cached_plans.has(key)) {  // && !agent.blocked
+        console.log("CACHE HIT", key)
+        p = agent.cached_plans.get(key).slice();
+    } else {
+        // Compute a plan from zero
+        console.log("CACHE MISS", key)
+        if (goal == "delivery") {
+            p = await plan(agent, "scored i");
+        } else {
+            let t = "t" + goal.x + "_" + goal.y;
+            p = await plan(agent, "at " + "i " + t);
+        }
+
+        // Add to cache
+        if (p != undefined) {
+            console.log("SAVE to CACHE", key)
+            agent.cached_plans.set(key, p.slice());
+        } else {
+            // Special case: same start and goal 
+            if (goal !== "delivery" && goal.x == agent.x && goal.y == agent.y) {
+                agent.cached_plans.set(key, []);
+            }
+            p = [];
+        }
     }
 
     let pos: [number, number] = [agent.x, agent.y];
 
-    if (p) {
-        for (let a of p) {
-            pos = agent.next_position(pos[0], pos[1], a);
-        }
-    } else {
-        p = []
+    for (let a of p) {
+        pos = agent.next_position(pos[0], pos[1], a);
     }
 
     return [p, pos];
@@ -105,7 +130,16 @@ async function plan_intention(agent: Agent, desire: Desire): Promise<[Plan, numb
                 let reward = parcels.map(p => p.reward? p.reward : 0).reduce((acc, num) => acc + num, 0)
                 let loss = parcels.map(p => Math.max(0, p.reward - plan.length)).reduce((acc, num) => acc + num, 0)
                 // TODO: maybe place division
-                score = reward - agent.move_cost * loss * DELIVERY_DISCOUNT / agent.time_to_decay;
+                // score = reward - agent.move_cost * loss * DELIVERY_DISCOUNT / agent.time_to_decay;
+                
+                if (agent.last_deliver_time + DELIVERY_EVERY * 1_000 < Date.now() && loss > 0) {
+                    // Agent should consider delivery every 1 minute
+                    score = 1_000_000;
+                } else {
+                    // Agent gets as much as not lose
+                    score = agent.move_cost * loss * DELIVERY_AMPLIFIER / agent.time_to_decay
+                    console.log("DELIVER", score)
+                }
 
                 // console.log("DELIVER INTENTION", score, reward, loss)
             
@@ -132,13 +166,17 @@ async function plan_intention(agent: Agent, desire: Desire): Promise<[Plan, numb
             // TODO: If there is some parcel move to it instead of explore
 
             // Chooses the most distant dense point
-            let choice: Point = agent.dense_tiles.reduce((prev, curr) => {
-                if (Math.abs(agent.x - curr.x) + Math.abs(agent.y - curr.y) > Math.abs(agent.x - prev.x) + Math.abs(agent.y - prev.y)) {
-                    return curr;
-                } else {
-                    return prev;
-                }
-            }, agent.get_coor());
+            // let choice: Point = agent.dense_tiles.reduce((prev, curr) => {
+            //     if (Math.abs(agent.x - curr.x) + Math.abs(agent.y - curr.y) > Math.abs(agent.x - prev.x) + Math.abs(agent.y - prev.y)) {
+            //         return curr;
+            //     } else {
+            //         return prev;
+            //     }
+            // }, agent.get_coor());
+
+            // Circular
+            let choice = agent.dense_tiles.shift();
+            agent.dense_tiles.push(choice);
 
             if (choice == undefined) {
                 console.error("HEEEEERE")
@@ -173,6 +211,7 @@ async function plan_intention(agent: Agent, desire: Desire): Promise<[Plan, numb
             
             if (new_plan) {
                 score = parcel.reward - new_plan.length * agent.move_cost / agent.time_to_decay;
+
                 // Evaluates if there is an agent closer than me
                 const enemy_gap = detect_agents(parcel.x, parcel.y, agent)
                 if (enemy_gap > 0) {
@@ -186,9 +225,9 @@ async function plan_intention(agent: Agent, desire: Desire): Promise<[Plan, numb
                 score = -1
             }
 
-            // Possible random choice for exploring
+            // Prioritized random choice for exploring
             if (score < 0) {
-                score = Math.random()
+                score = Math.random() * RANDOM_PICKUP
             }
             
             // Return plan
@@ -224,7 +263,20 @@ function detect_agents(x: number, y: number, agent: Agent): number {
 
 type Point = { x: number, y: number };
 
-function compute_dense_tiles(map: Tile[][]) {
+function compute_spawn_tiles(map: Tile[][]): Point[] {
+    let res = [];
+    for (let row of map) {
+        for (let tile of row) {
+            if (tile != undefined && tile.spawnable) {
+                res.push({x: tile.x, y: tile.y})
+            }
+        }
+    }
+
+    return res;
+}
+
+function compute_dense_tiles(map: Tile[][]): Point[] {
     // Compute dense tiles
         
     const rows = map.length;

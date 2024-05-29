@@ -1,10 +1,10 @@
 import { onlineSolver, PddlExecutor, PddlProblem, Beliefset, PddlDomain, PddlAction } from "@unitn-asa/pddl-client";
 import { readFileSync } from "fs";
 import { Agent } from "../SingleAgent/agent.js";
-import { DIRECTIONS } from "../SingleAgent/auxiliary.js";
+import { DIRECTIONS, Point } from "../SingleAgent/auxiliary.js";
 import { Action } from "../types.js";
 
-export async function plan(agent: Agent, goal: string): Promise<Action[] | undefined> {
+export async function plan(agent: Agent, goal: string, position?: Point): Promise<Action[] | undefined> {
 
     /** BeliefSet */
     const myBeliefset = new Beliefset();
@@ -17,7 +17,8 @@ export async function plan(agent: Agent, goal: string): Promise<Action[] | undef
     } else {
         myBeliefset.undeclare("carry i")
     }
-    let t = "t" + agent.x + "_" + agent.y 
+
+    let t = (position != undefined) ? "t" + position.x + "_" + position.y : "t" + agent.x + "_" + agent.y;
     myBeliefset.declare("at i " + t)
 
     // Map
@@ -76,9 +77,9 @@ export async function plan(agent: Agent, goal: string): Promise<Action[] | undef
 
     
     /** Solve */
-    console.time("solve " + goal)
+    console.time("solve " + t +  goal)
     let plan = await onlineSolver(DOMAIN_STRING, problem_string);
-    console.timeEnd("solve " + goal)
+    console.timeEnd("solve " + t + goal)
     // console.log(plan)
 
     /** Execute */

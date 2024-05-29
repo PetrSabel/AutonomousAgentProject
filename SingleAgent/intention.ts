@@ -16,6 +16,7 @@ export class Intention {
                                 // and if it achieves the goal execute it
 
     currentPlan?: Plan
+    planB?: Plan 
     cost?: number
     x?: number 
     y?: number
@@ -33,49 +34,60 @@ export class Intention {
         [this.currentPlan, this.cost, [this.x, this.y]] = await plan_intention(agent, this.desire);
     }
 
+    async compute_planB(agent: Agent) {
+        let _cost: number;
+        [this.planB, _cost, [this.x, this.y]] = await plan_intention(agent, this.desire);
+    }
+
     async step(agent: Agent) {
         if (!this.executing) {
             this.executing = true
         }
 
-        let action = this.currentPlan!.shift()
-        if (action) {
-            // console.log("ACTION = ", action)
-            try {
-                switch (action) {
-                    case "pickup":
-                        await agent.pickup()
-                        break;
-                    case "putdown":
-                        await agent.putdown()
-                        break;
-                    
-                    case "wait":
-                        // TODO: decide what to do
-                        // this.replan(agent)
-                        // agent.blocked = true 
-                        break;
-                
-                    case "left":
-                    case "right":
-                    case "up":
-                    case "down":
-                        await agent.move(action)
-                        break;
+        if (this.currentPlan == undefined || this.currentPlan.length < 1) {
+            this.stop()
+            return;
+        }
 
-                    default:
-                        console.error(action);
-                        throw new Error("UNRECOGNIZED COMMAND")
-                }
-            } catch(e) {
-                // console.log("ACTION BLOCKED", e)
-                agent.blocked = true;
-                return;
+        let action = this.currentPlan[0];
+        try {
+            switch (action) {
+                case "pickup":
+                    await agent.pickup()
+                    break;
+                case "putdown":
+                    await agent.putdown()
+                    break;
+                
+                case "wait":
+                    // TODO: decide what to do
+                    // this.replan(agent)
+                    // agent.blocked = true 
+                    break;
+            
+                case "left":
+                case "right":
+                case "up":
+                case "down":
+                    await agent.move(action)
+                    break;
+
+                default:
+                    console.error(action);
+                    throw new Error("UNRECOGNIZED COMMAND")
             }
-        } else {
-            // Empty intention
-            this.executing = false
-            await new Promise(res => setTimeout(res, 5));
+
+            // Remove executed action
+            this.currentPlan.shift();
+        } catch(e) {
+            // console.log("ACTION BLOCKED", e)
+            // TODO: Try to solve the problem
+            // if (this.planB) {
+
+            // } else {
+            //     this.compute_planB(agent);
+            // }
+            agent.blocked = true;
             return;
         }
     }

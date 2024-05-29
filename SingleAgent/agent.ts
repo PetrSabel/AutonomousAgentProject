@@ -1,8 +1,9 @@
 import { PriorityQueue } from "@datastructures-js/priority-queue";
 import { Intention } from "./intention.js";
-import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption } from "../types"
-import { Point, compute_dense_tiles, detect_agents } from "./auxiliary.js";
+import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption, Plan } from "../types"
+import { Point, compute_dense_tiles, compute_spawn_tiles, detect_agents } from "./auxiliary.js";
 import { set_agent_listeners } from "./socket.js";
+import { plan } from "../Planning/plans.js";
 
 export const FORGET_AFTER: number = 500; // ms
 
@@ -30,9 +31,13 @@ export class Agent {
     time_to_move: number; // The time needed to execute a move
     time_to_plan: number; // Expected time to plan next move (average)
     time_to_decay: number;
+    last_deliver_time: number;
 
     current_intention?: Intention 
     blocked: boolean
+
+    // Key is in form: "x y goal" where goal can be "delivery" or "goal_x goal_y"
+    cached_plans: Map<string, Plan>
 
     // Configuration of the level
     config: any;
@@ -68,6 +73,9 @@ export class Agent {
         this.agents = new Map();
         // this.current_optimal_cost = 0.0; // The optimal cost executing an intention 
 
+        this.last_deliver_time = Date.now();
+        this.cached_plans = new Map();
+
         // TODO: try to estimate them OR extract from map.config
         this.time_to_move = 1000; // ms
         this.time_to_plan = 1000; // ms
@@ -82,7 +90,7 @@ export class Agent {
 
         console.log("Agent created!")
 
-        this.dense_tiles = compute_dense_tiles(this.map);
+        this.dense_tiles = compute_spawn_tiles(this.map);
         this.dense_visited = 0
         
         const parcel_decay_time: string = this.config.PARCEL_DECADING_INTERVAL
@@ -141,6 +149,33 @@ export class Agent {
 
     start() {
         console.log("Launching agent!")
+        
+        // TODO: compute all possible plans
+        let i = 0;
+        let prom = []
+        for (let row of this.map) {
+            for (let tile of row) {
+                if (tile) {
+                    for (let row1 of this.map) {
+                        for (let tile1 of row1) {
+                            if (tile1 != undefined && (tile.spawnable && tile1.delivery)) {
+                                // Plan from tile to tile1
+                                // console.log("Posting", i)
+                                let goal = "at i t" + tile1.x + "_" + tile1.y;
+                                prom.push([goal, {x: tile.x, y: tile.y}]);
+                                i += 1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Promise.all(prom).then(
+        //     () => console.log("FINISHED")
+        // )
+        console.log("TO CACHE", prom.length)
+
         this.#loop()
     }
 
@@ -181,6 +216,7 @@ export class Agent {
         }
         this.carry = new Array(0)
 
+        this.last_deliver_time = Date.now()
     }
 
     async move(direction: Direction) {
@@ -296,7 +332,7 @@ export class Agent {
         this.blocked = false 
         this.current_intention = intention;
         console.log("EXECUTING", intention.desire.description, intention.x, intention.y,
-                    "From", this.x, this.y)
+                    "From", this.x, this.y, "SCORE", intention.cost)
         //     "\nPLAN", intention.currentPlan
         // )
         // console.log("AGENTS", this.agents)
@@ -317,32 +353,39 @@ export class Agent {
 
             if (this.new_desires.length > 0) {
                 console.log("NEW DESIRES FOUND") // , this.new_desires
-                let new_options = this.get_new_options()
-
-                for (let option of new_options) {
-                    await option.compute_plan(this);
-                }
-
-                let filtered = this.filterOptions(new_options)
-
-                // console.log("NEW QUEUE")
-                // for (let q of filtered.toArray()) {
-                //     console.log(q)
-                // }
-
-                let first = filtered.pop()
-                if (first) {
-                    if (this.current_intention == undefined) {
-                        this.current_intention = first;
-                    } else if (first.estimateProfit() > this.current_intention.estimateProfit()) {
-                        console.log("CHANGED")
-                        this.current_intention = first 
-                    } else {
-                        // console.log("NOT CHANGED")
+                
+                if (this.current_intention != undefined && this.current_intention.desire.description == "deliver") {
+                    console.log("SKIPPED BECAUSE DELIVERING")
+                    
+                } else {
+                    let new_options = this.get_new_options()
+    
+                    for (let option of new_options) {
+                        await option.compute_plan(this);
                     }
+    
+                    let filtered = this.filterOptions(new_options)
+    
+                    // console.log("NEW QUEUE")
+                    // for (let q of filtered.toArray()) {
+                    //     console.log(q)
+                    // }
+    
+                    let first = filtered.pop()
+                    if (first) {
+                        if (this.current_intention == undefined) {
+                            this.current_intention = first;
+                        } else if (first.estimateProfit() > this.current_intention.estimateProfit()) {
+                            console.log("CHANGED")
+                            this.current_intention = first 
+                        } else {
+                            // console.log("NOT CHANGED")
+                        }
+                    }
+                    // console.log("tmp", this.new_desires)
                 }
-                // console.log("tmp", this.new_desires)
             }
+            
 
             await this.current_intention.step(this);
             // console.log("STEP")
@@ -574,7 +617,6 @@ export class Agent {
 //     Belief problem: may has data inconsistency => 2 databases (real and expected)
 //         Strategies: static (stay there forever), annihilation (exists only if I see it), prediction
 // The agent is executing a plan, sees an obstacle => re-plan, wait until changes back => wait until re-plan
-// TODO: update belief
 
 // Desires = goals the agent want to achieve (deliver packs, get packs, explore map)
 

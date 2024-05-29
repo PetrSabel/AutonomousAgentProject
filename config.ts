@@ -9,7 +9,9 @@ const config = {
     }
 }
 
-export const DPPL_PLANNING: boolean = true;
+const DPPL_PLANNING: boolean = true;
+const DELIVERY_AMPLIFIER: number = 1.5;  // Add more score for delivery because of planning 
 // TODO: add path to plan library
 
+export { DPPL_PLANNING, DELIVERY_AMPLIFIER };
 export default config;
