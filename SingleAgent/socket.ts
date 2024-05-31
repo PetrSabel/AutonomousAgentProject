@@ -1,7 +1,8 @@
 import { io } from "socket.io-client"
 import { Tile, TileInfo, AgentDesciption, ParcelInfo } from "../types"
-import { Agent, FORGET_AFTER } from "./agent.js";
+import { Agent } from "./agent.js";
 import { initialize_agent } from "./main.js";
+import { FORGET_AFTER } from "../config.js";
 
 export { set_agent_listeners, create_socket, set_initial_listeners }
 

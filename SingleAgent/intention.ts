@@ -52,12 +52,14 @@ export class Intention {
         let action = this.currentPlan[0];
         try {
             switch (action) {
-                case "pickup":
+                case "pickup": {
                     await agent.pickup()
                     break;
-                case "putdown":
+                }
+                case "putdown": {
                     await agent.putdown()
                     break;
+                }
                 
                 case "wait":
                     // TODO: decide what to do
@@ -72,9 +74,10 @@ export class Intention {
                     await agent.move(action)
                     break;
 
-                default:
+                default: {
                     console.error(action);
                     throw new Error("UNRECOGNIZED COMMAND")
+                }
             }
 
             // Remove executed action
@@ -82,12 +85,14 @@ export class Intention {
         } catch(e) {
             // console.log("ACTION BLOCKED", e)
             // TODO: Try to solve the problem
-            // if (this.planB) {
-
-            // } else {
-            //     this.compute_planB(agent);
-            // }
-            agent.blocked = true;
+            if (this.planB) {
+                // Replan failed
+                agent.blocked = true;
+            } else {
+                // Try to replan
+                await this.compute_planB(agent);
+                this.currentPlan = this.planB.slice();
+            }
             return;
         }
     }

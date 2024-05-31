@@ -3,9 +3,8 @@ import { Intention } from "./intention.js";
 import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption, Plan } from "../types"
 import { Point, compute_dense_tiles, compute_spawn_tiles, detect_agents } from "./auxiliary.js";
 import { set_agent_listeners } from "./socket.js";
-import { plan } from "../Planning/plans.js";
+import { FORGET_AFTER } from "../config.js";
 
-export const FORGET_AFTER: number = 500; // ms
 
 // TODO: declare function for each of agents actions (communication lacks)
 // TODO: idea is to bump into others when there are too many agents on the map (or maybe save agents for more time)
@@ -333,26 +332,13 @@ export class Agent {
         this.current_intention = intention;
         console.log("EXECUTING", intention.desire.description, intention.x, intention.y,
                     "From", this.x, this.y, "SCORE", intention.cost)
-        //     "\nPLAN", intention.currentPlan
-        // )
-        // console.log("AGENTS", this.agents)
-        // for (let row of this.map) {
-        //     for (let tile of row) {
-        //         if (tile?.agentID) {
-        //             console.log("HERE", tile)
-        //         }
-        //     }
-        // }
-        // console.log("PLAN=", intention.currentPlan)
 
         let reachable: boolean;
         do {
-            // console.log("BEFORE REACT")
             await this.reactive_behavior();
-            // console.log("AFTER REACT")
 
             if (this.new_desires.length > 0) {
-                console.log("NEW DESIRES FOUND") // , this.new_desires
+                console.log("NEW DESIRES FOUND")
                 
                 if (this.current_intention != undefined && this.current_intention.desire.description == "deliver") {
                     console.log("SKIPPED BECAUSE DELIVERING")
@@ -366,11 +352,6 @@ export class Agent {
     
                     let filtered = this.filterOptions(new_options)
     
-                    // console.log("NEW QUEUE")
-                    // for (let q of filtered.toArray()) {
-                    //     console.log(q)
-                    // }
-    
                     let first = filtered.pop()
                     if (first) {
                         if (this.current_intention == undefined) {
@@ -382,13 +363,11 @@ export class Agent {
                             // console.log("NOT CHANGED")
                         }
                     }
-                    // console.log("tmp", this.new_desires)
                 }
             }
             
 
             await this.current_intention.step(this);
-            // console.log("STEP")
 
             const dumb = true;
             if (dumb) {
@@ -397,8 +376,6 @@ export class Agent {
                 reachable = this.current_intention.executing && !this.blocked && this.check_reachable();
             }
         } while (reachable)
-        
-        // console.error("FINISH", this.current_intention.executing, !this.blocked, this.check_reachable())
 
         // Give a possibility to update beliefs (asynchronously)
         await new Promise(res => setTimeout(res, 50));
@@ -452,9 +429,6 @@ export class Agent {
 
                     const successful_simulation = this.simulate_intention();
 
-                    // console.log("EXISTS", this.parcels.has(parcel.id), this.map[x][y] != null,
-                    //     this.map[x][y]!.parcel != null)
-                    // console.log("NO REASON", parcel_exists, destionation_clear, intruder_too_close, successful_simulation)
                     return parcel_exists && destionation_clear && !intruder_too_close && successful_simulation;
                 }
             }
@@ -480,7 +454,7 @@ export class Agent {
             if (this.parcels.has(parcel.id)) {
                 this.remove_parcel(parcel.id);
             }
-        } else { // Save new parcel or update a known one
+        } else { 
             // Removes old position
             if (this.parcels.has(parcel.id)) {
                 let x = Math.round(parcel.x)
@@ -488,6 +462,7 @@ export class Agent {
 
                 this.map[x][y]!.parcel = null;
             }
+            // Save new parcel or update a known one
             this.parcels.set(parcel.id, parcel);
             let x = Math.round(parcel.x)
             let y = Math.round(parcel.y) 
@@ -496,7 +471,6 @@ export class Agent {
         }
     }
 
-    // TODO: simulate execution of the plan and check whether blocked or something fails
     // Checks whether the current intention is still valid
     simulate_intention(): boolean {
         if (this.current_intention) {
@@ -541,7 +515,6 @@ export class Agent {
 
 
     forget_agent(x: number, y: number, a: AgentDesciption) {
-        // console.error("FORGETTING", x, y, a.id);
         let my_x = Math.round(this.x);
         let my_y = Math.round(this.y);
         const vision_distance = this.config.AGENTS_OBSERVATION_DISTANCE;
@@ -549,14 +522,12 @@ export class Agent {
         // Forget an agent if no more visible
         if (Math.abs(my_x - x) + Math.abs(my_y - y) > vision_distance) {
             if (this.map[x][y]!.agentID === a.id) {
-                // this.map[x][y]!.agentID = null;
-                // this.agents.delete(a.id);
                 this.delete_agent(a);
             }
         } else if (this.map[x][y]!.agentID == null) {
             // If already forgot => OK
         } else {
-            // If still visible and present postpone
+            // If still visible and present, then postpone
             setTimeout(() => {
                 this.forget_agent(x, y, a)
             }, FORGET_AFTER)
@@ -565,8 +536,6 @@ export class Agent {
 
     delete_agent(a: AgentDesciption) {
         if (this.agents.has(a.id)) {
-            // let x = Math.round(a.x)
-            // let y = Math.round(a.y)
 
             for (let x = 0; x < this.map_size[0]; x += 1) {
                 for (let y = 0; y < this.map_size[1]; y += 1){
@@ -587,28 +556,6 @@ export class Agent {
     // TODO: if action is blocked try to replan, maybe add a second plan to each intention
     //      OR save the search variables somewhere
     //      maybe requires to store the current intention
-    // async executePlan(plan: Action[]) {
-    //     for (let action of plan) {
-    //         switch (action) {
-    //             case "pickup":
-    //                 await this.pickup()
-    //                 break;
-
-    //             case "putdown":
-    //                 await this.putdown()
-    //                 break;
-                
-    //             case "wait":
-    //                 // TODO: decide what to do
-    //                 break;
-            
-    //             default:
-    //                 await this.move(action)
-    //                 break;
-    //         }
-    //     }
-    // }
-
 }
 
 // BDI => Beliefs, Desires, Intentions

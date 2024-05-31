@@ -4,16 +4,13 @@ import { generate_exact_position, isDelivery } from "./goals.js";
 import { generate_air_distance, nearestTiles } from "./heuristics.js";
 import { Action, Desire, Direction, Plan, Tile } from "../types";
 import { plan } from "../Planning/plans.js";
-import { DPPL_PLANNING, DELIVERY_AMPLIFIER } from "../config.js";
+import { DPPL_PLANNING, DELIVERY_AMPLIFIER, DELIVERY_EVERY, RANDOM_PICKUP } from "../config.js";
 
 export { plan_intention, compute_spawn_tiles, compute_dense_tiles, Point, detect_agents, DIRECTIONS }
 
-// const EXPLORE_COST: number = 0.1;
 // Delivery has a discount on move cost
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
 // Pickup options should be considered as good exploration options
-const RANDOM_PICKUP: number = 3;  // Factor to set preference of pickup over normal explore
-const DELIVERY_EVERY: number = 60;  // Specify how often the agent must deliver packages
 
 function shuffle<T>(a: Array<T>) {
     let j: number, x: T, i: number;
@@ -70,6 +67,18 @@ async function plan_and_coors_pddl(agent: Agent, goal: "delivery" | Point):
     if (agent.cached_plans.has(key)) {  // && !agent.blocked
         console.log("CACHE HIT", key)
         p = agent.cached_plans.get(key).slice();
+        if (goal == "delivery") {
+            plan(agent, "scored i").then((res) => {
+                    if (res) agent.cached_plans.set(key, res.slice())
+                }
+            )
+        } else {
+            let t = "t" + goal.x + "_" + goal.y;
+            plan(agent, "at " + "i " + t).then((res) => {
+                    if (res) agent.cached_plans.set(key, res.slice())
+                }
+            )
+        }
     } else {
         // Compute a plan from zero
         console.log("CACHE MISS", key)
@@ -185,9 +194,6 @@ async function plan_intention(agent: Agent, desire: Desire): Promise<[Plan, numb
             // agent.dense_tiles.push(choice);
 
             [new_plan, coor] = await plan_and_coors(agent, {x: choice.x, y: choice.y});
-            // Astar(agent.map, agent.map_size, agent.x, agent.y,
-            //         generate_air_distance(choice.x, choice.y),
-            //         generate_exact_position(choice.x, choice.y));
 
             // Generate some plan
             if (new_plan){

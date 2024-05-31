@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import { Agent } from "../SingleAgent/agent.js";
 import { DIRECTIONS, Point } from "../SingleAgent/auxiliary.js";
 import { Action } from "../types.js";
+import { DOMAIN_PATH } from "../config.js";
 
 export async function plan(agent: Agent, goal: string, position?: Point): Promise<Action[] | undefined> {
 
@@ -72,7 +73,6 @@ export async function plan(agent: Agent, goal: string, position?: Point): Promis
     let problem_string = problem.toPddlString()
 
     /** Domain */
-    const DOMAIN_PATH = "Planning/domain-deliveroo.pddl"
     const DOMAIN_STRING: string = readFileSync( DOMAIN_PATH, 'utf8');
 
     
@@ -80,7 +80,6 @@ export async function plan(agent: Agent, goal: string, position?: Point): Promis
     console.time("solve " + t +  goal)
     let plan = await onlineSolver(DOMAIN_STRING, problem_string);
     console.timeEnd("solve " + t + goal)
-    // console.log(plan)
 
     /** Execute */
     let moves = [];

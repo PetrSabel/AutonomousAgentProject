@@ -1,14 +1,11 @@
 import { Agent } from "./agent.js";
-import { default as config } from "../config.js"
+import { AGENT_NAME, LOCAL_SERVER, default as config } from "../config.js"
 import { create_socket, map, map_config, map_size, personal_info } from "./socket.js";
 
 // TODO: launch planner at the beginning from all tiles to each other and cache the results
 //      maybe more possible plans for the same one (in case of block) OR if blocked make a random move OR recompute (but difficult)
 //      4 plan for each direction blocked
 
-const LOCAL_SERVER: boolean = true;
-
-const AGENT_NAME: string = "Autonomix";
 const host = LOCAL_SERVER? config.local.host : config.remote.host;
 const token = LOCAL_SERVER? config.local.token : config.remote.token;
 
