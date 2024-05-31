@@ -6,11 +6,19 @@ const config = {
     remote: {
         host: "http://rtibdi.disi.unitn.it:8080/",//"https://deliveroojs.onrender.com?name=Autonomix",
         token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjVlOTAzZmM5MDdhIiwibmFtZSI6IkF1dG9ub21peCIsImlhdCI6MTcxNTY4MDg0MH0.iXSTUGHxgsC0uZbEzqRsSVRhu4mHVYfSJ8Xw-NdkaX4" 
-    }
+    },
+    multi: [
+        {
+            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjdkNDcwODRhYjZmIiwibmFtZSI6IkF1dG9ub21peCIsImlhdCI6MTcxNzE0MzMyMn0.VKty3KSonZx6scKCDUMT3uMoMLjwdAkuQuqGUfJUsE8"
+        },
+        {
+            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQ0NzA4NGFiNmY1IiwibmFtZSI6IkF1dG9ub21peCIsImlhdCI6MTcxNzE0MzM0Mn0.jBiW3JoBih3RyJL3tJuJtF1RpioHFIB4KnZKAFcEPaQ"
+        }
+    ]
 }
 
 const DPPL_PLANNING: boolean = true;
-const DELIVERY_AMPLIFIER: number = 1.5;  // Add more score for delivery because of planning 
+const DELIVERY_WEIGHT: number = 3.0;  // Add more score for delivery because of planning 
 const LOCAL_SERVER: boolean = true;
 const AGENT_NAME: string = "Autonomix";
 const RANDOM_PICKUP: number = 3;  // Factor to set preference of pickup over normal explore
@@ -19,6 +27,6 @@ const DOMAIN_PATH = "Planning/domain-deliveroo.pddl";
 const FORGET_AFTER: number = 500; // ms
 // TODO: add path to plan library
 
-export { DPPL_PLANNING, DELIVERY_AMPLIFIER, LOCAL_SERVER, AGENT_NAME,
+export { DPPL_PLANNING, DELIVERY_WEIGHT, LOCAL_SERVER, AGENT_NAME,
          RANDOM_PICKUP, DELIVERY_EVERY, DOMAIN_PATH, FORGET_AFTER };
 export default config;

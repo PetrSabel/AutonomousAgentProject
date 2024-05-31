@@ -77,9 +77,14 @@ export async function plan(agent: Agent, goal: string, position?: Point): Promis
 
     
     /** Solve */
-    console.time("solve " + t +  goal)
-    let plan = await onlineSolver(DOMAIN_STRING, problem_string);
-    console.timeEnd("solve " + t + goal)
+    let plan: any = undefined;
+    // console.time("solve " + t +  goal)
+    try {
+        plan = await onlineSolver(DOMAIN_STRING, problem_string);
+    } catch(e) {
+        console.error("Solver ERROR", e)
+    }
+    // console.timeEnd("solve " + t + goal)
 
     /** Execute */
     let moves = [];
@@ -95,10 +100,11 @@ export async function plan(agent: Agent, goal: string, position?: Point): Promis
         }
 
     } else {
-        console.log("IMPOSSIBLE INTENTION", goal);
+        agent.log("IMPOSSIBLE INTENTION", goal);
+        // problem.saveToFile();
         return undefined;
     }
 
-    console.log("PLAN", moves);
+    agent.log("PLAN", moves);
     return moves;
 }

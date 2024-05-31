@@ -71,8 +71,19 @@ type Estimation = {
     last_coordinates: [number, number],
 }
 
+type Messages = {
+    type: "parcels",
+    content: ParcelInfo[]
+} | {
+    type: "agents",
+    content: AgentDesciption[]
+} | {
+    type: "greeting",
+    content: string 
+}
+
 export { 
     Direction, TileInfo, PassableTile, EmptyTile, Tile,
     ParcelInfo, Parcel, AgentDesciption,
-    Desire, Action, Plan, Estimation
+    Desire, Action, Plan, Estimation, Messages
 };

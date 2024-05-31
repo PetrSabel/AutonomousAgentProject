@@ -85,14 +85,17 @@ export class Intention {
         } catch(e) {
             // console.log("ACTION BLOCKED", e)
             // TODO: Try to solve the problem
-            if (this.planB) {
+            // if (this.planB) {
                 // Replan failed
                 agent.blocked = true;
-            } else {
-                // Try to replan
-                await this.compute_planB(agent);
-                this.currentPlan = this.planB.slice();
-            }
+            // } else {
+            //     // Try to replan
+            //     await this.compute_planB(agent);
+            //     console.log("PLANB", this.planB, "for", this.desire)
+            //     if (this.planB) {
+            //         this.currentPlan = this.planB.slice();
+            //     }
+            // }
             return;
         }
     }

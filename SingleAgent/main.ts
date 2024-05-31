@@ -14,7 +14,7 @@ console.log("The server at ", host)
 const socket = create_socket(host + "?name=" + AGENT_NAME, token)
 
 // Creates the agent when possible
-export function initialize_agent() {
+function initialize_agent() {
     console.log("TRYING")
     if (map && map_config && map_size && personal_info) {
         const agent = new Agent(personal_info.name, personal_info.id, map, map_size, map_config, 
@@ -29,3 +29,5 @@ export function initialize_agent() {
     }
 
 }
+
+initialize_agent()

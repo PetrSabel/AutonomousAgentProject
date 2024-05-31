@@ -35,9 +35,6 @@ export class Agent {
     current_intention?: Intention 
     blocked: boolean
 
-    // Key is in form: "x y goal" where goal can be "delivery" or "goal_x goal_y"
-    cached_plans: Map<string, Plan>
-
     // Configuration of the level
     config: any;
 
@@ -73,7 +70,6 @@ export class Agent {
         // this.current_optimal_cost = 0.0; // The optimal cost executing an intention 
 
         this.last_deliver_time = Date.now();
-        this.cached_plans = new Map();
 
         // TODO: try to estimate them OR extract from map.config
         this.time_to_move = 1000; // ms
@@ -85,9 +81,7 @@ export class Agent {
         this.current_intention= undefined;
         this.blocked = false;
 
-        set_agent_listeners(this.socket, this);
-
-        console.log("Agent created!")
+        this.log("Agent created!")
 
         this.dense_tiles = compute_spawn_tiles(this.map);
         this.dense_visited = 0
@@ -146,8 +140,17 @@ export class Agent {
         this.#y = y;
     }
 
+    log(...args: any[]) {
+        console.log("("+this.id+")", ...args)
+    }
+
+    setListeners() {
+        set_agent_listeners(this.socket, this);
+    }
+
     start() {
-        console.log("Launching agent!")
+        this.log("Launching agent!")
+        this.setListeners()
         
         // TODO: compute all possible plans
         let i = 0;
@@ -173,7 +176,7 @@ export class Agent {
         // Promise.all(prom).then(
         //     () => console.log("FINISHED")
         // )
-        console.log("TO CACHE", prom.length)
+        // this.log("TO CACHE", prom.length)
 
         this.#loop()
     }
@@ -237,7 +240,7 @@ export class Agent {
             try {
                 let options = this.getOptions()
 
-                console.log("\n\nCOMPUTING", options.length ,"options.....")
+                this.log("\n\nCOMPUTING", options.length ,"options.....")
                 // console.time("-------------------------------")
                 await Promise.all(options.map(opt => opt.compute_plan(this)));
                 // console.timeEnd("-------------------------------")
@@ -258,11 +261,12 @@ export class Agent {
 
                 await new Promise(res => setTimeout(res, 5));
             } catch(e) {
-                console.error("Some error", e)
+                this.log("Some error", e)
                 await new Promise(res => setTimeout(res, 100));
             }
 
             // break;
+            // await new Promise(res => setTimeout(res, 2000));
         }
     }
 
@@ -308,6 +312,7 @@ export class Agent {
     // Return ordered list of options
     filterOptions(options: Intention[]) {
         // TODO: filter options based on some criteria
+        options = options.filter(option => option.currentPlan != undefined)
         options = options.filter(option => option.cost >= 0.0)
         let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1)
         
@@ -330,7 +335,7 @@ export class Agent {
     async executeIntention(intention: Intention) {
         this.blocked = false 
         this.current_intention = intention;
-        console.log("EXECUTING", intention.desire.description, intention.x, intention.y,
+        this.log("EXECUTING", intention.desire.description, intention.x, intention.y,
                     "From", this.x, this.y, "SCORE", intention.cost)
 
         let reachable: boolean;
@@ -338,10 +343,10 @@ export class Agent {
             await this.reactive_behavior();
 
             if (this.new_desires.length > 0) {
-                console.log("NEW DESIRES FOUND")
+                this.log("NEW DESIRES FOUND")
                 
                 if (this.current_intention != undefined && this.current_intention.desire.description == "deliver") {
-                    console.log("SKIPPED BECAUSE DELIVERING")
+                    this.log("SKIPPED BECAUSE DELIVERING")
                     
                 } else {
                     let new_options = this.get_new_options()
@@ -357,7 +362,7 @@ export class Agent {
                         if (this.current_intention == undefined) {
                             this.current_intention = first;
                         } else if (first.estimateProfit() > this.current_intention.estimateProfit()) {
-                            console.log("CHANGED")
+                            this.log("CHANGED")
                             this.current_intention = first 
                         } else {
                             // console.log("NOT CHANGED")
@@ -539,8 +544,8 @@ export class Agent {
 
             for (let x = 0; x < this.map_size[0]; x += 1) {
                 for (let y = 0; y < this.map_size[1]; y += 1){
-                    if (this.map[x][y] != null && this.map[x][y]!.agentID === a.id) {
-                        this.map[x][y]!.agentID = null;
+                    if (this.map[x][y] != null && this.map[x][y].agentID === a.id) {
+                        this.map[x][y].agentID = null;
                     }
                 }
             }
