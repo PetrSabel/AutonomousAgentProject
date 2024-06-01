@@ -1,9 +1,10 @@
 import { PriorityQueue } from "@datastructures-js/priority-queue";
 import { Intention } from "./intention.js";
 import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption, Plan } from "../types"
-import { Point, compute_dense_tiles, compute_spawn_tiles, detect_agents } from "./auxiliary.js";
+import { DIRECTIONS, Point, compute_dense_tiles, compute_spawn_tiles, detect_agents } from "./auxiliary.js";
 import { set_agent_listeners } from "./socket.js";
 import { FORGET_AFTER } from "../config.js";
+import { Beliefset } from "@unitn-asa/pddl-client";
 
 
 // TODO: declare function for each of agents actions (communication lacks)
@@ -518,6 +519,64 @@ export class Agent {
         }
     }
 
+    get_beliefset(goal: string, for_cache: boolean, position?: Point) {
+        const myBeliefset = new Beliefset();
+        // My info
+        myBeliefset.declare("me i")
+        myBeliefset.undeclare("scored i")
+
+        if (goal === "scored i") {
+            myBeliefset.declare("carry i")
+        } else {
+            myBeliefset.undeclare("carry i")
+        }
+
+        let t = (position != undefined) ? "t" + position.x + "_" + position.y : "t" + this.x + "_" + this.y;
+        myBeliefset.declare("at i " + t)
+
+        // Map
+        for (let row of this.map) {
+            for (let tile of row) {
+                if (tile) {
+                    t = "t" + tile.x + "_" + tile.y 
+                    myBeliefset.declare("tile " + t)
+
+                    // Tile descriptions
+                    if (tile.delivery) {
+                        myBeliefset.declare("delivery " + t)
+                    }
+                    if (tile.spawnable) {
+                        myBeliefset.declare("spawn " + t)
+                    }
+                    // Other agents positions
+                    if (tile.agentID && !for_cache) {
+                        myBeliefset.undeclare("free " + t)
+                    } else {
+                        myBeliefset.declare("free " + t)
+                    }
+                    
+                    // Parcels
+                    if (tile.parcel) {
+                        myBeliefset.declare("withparcel " + t)
+                    }
+
+                    // Moves
+                    for (let dir of DIRECTIONS) {
+                        if (tile) {
+                            let [nx, ny] = this.next_position(tile.x, tile.y, dir)
+
+                            if (this.map[nx] != undefined && this.map[nx][ny]) {
+                                let nt = "t" + nx + "_" + ny 
+                                myBeliefset.declare(dir + " " + t + " " + nt)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return myBeliefset;
+    }
 
     forget_agent(x: number, y: number, a: AgentDesciption) {
         let my_x = Math.round(this.x);

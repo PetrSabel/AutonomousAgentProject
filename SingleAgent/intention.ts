@@ -31,7 +31,7 @@ export class Intention {
     }
 
     async compute_plan(agent: Agent) {
-        [this.currentPlan, this.cost, [this.x, this.y]] = await plan_intention(agent, this.desire);
+        [this.currentPlan, this.cost, [this.x, this.y]] = await plan_intention(agent, this.desire, !agent.blocked);
     }
 
     async compute_planB(agent: Agent) {

@@ -71,13 +71,13 @@ async function plan_and_coors_pddl(agent: Agent, goal: "delivery" | Point, use_c
         agent.log("CACHE HIT", key)
         p = cached_plans.get(key).slice();
         if (goal == "delivery") {
-            plan(agent, "scored i").then((res) => {
+            plan(agent, "scored i", true).then((res) => {
                     if (res) save_plan(key, res.slice())
                 }
             )
         } else {
             let t = "t" + goal.x + "_" + goal.y;
-            plan(agent, "at " + "i " + t).then((res) => {
+            plan(agent, "at " + "i " + t, true).then((res) => {
                     if (res) save_plan(key, res.slice())
                 }
             )
@@ -122,8 +122,6 @@ function save_plan(key: string, plan: Action[]) {
 
 let plan_and_coors = DPPL_PLANNING ? plan_and_coors_pddl : plan_and_coors_astar;
 
-// TODO: change "agent" with requested information
-// TODO: take a callback function, called each time new cost estimation is computed
 async function plan_intention(agent: Agent, desire: Desire, use_cache = true): Promise<[Plan | undefined, number, [number, number]]> {
     let plan: Action[] | undefined = undefined
     let score: number = 0
@@ -158,7 +156,6 @@ async function plan_intention(agent: Agent, desire: Desire, use_cache = true): P
                     // Agent gets as much as not lose 
                     // score = Math.max(reward - 50, agent.move_cost * loss * DELIVERY_AMPLIFIER / agent.time_to_decay)
                     score = reward / DELIVERY_WEIGHT;
-                
                 }
 
                 // console.log("DELIVER INTENTION", score, reward, loss)
@@ -197,9 +194,9 @@ async function plan_intention(agent: Agent, desire: Desire, use_cache = true): P
             //     }
             // }, agent.get_coor());
 
-            // Circular
-            let choice = agent.dense_tiles.shift();
-            agent.dense_tiles.push(choice);
+            // Random
+            let index = Math.floor(Math.random() * agent.dense_tiles.length);
+            let choice = agent.dense_tiles[index];
 
             if (choice == undefined) {
                 console.error("HEEEEERE")
@@ -265,6 +262,8 @@ async function plan_intention(agent: Agent, desire: Desire, use_cache = true): P
             if (score < 0) {
                 score = Math.random() * RANDOM_PICKUP
             }
+
+            // Penalize intentions close to the other ally
             
             // Return plan
             return [plan, score, coor]

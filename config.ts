@@ -23,10 +23,12 @@ const LOCAL_SERVER: boolean = true;
 const AGENT_NAME: string = "Autonomix";
 const RANDOM_PICKUP: number = 3;  // Factor to set preference of pickup over normal explore
 const DELIVERY_EVERY: number = 60;  // Specify how often the agent must deliver packages
+const MULTI_DOMAIN_PATH = "Planning/domain-multi.pddl";
 const DOMAIN_PATH = "Planning/domain-deliveroo.pddl";
 const FORGET_AFTER: number = 500; // ms
 // TODO: add path to plan library
 
 export { DPPL_PLANNING, DELIVERY_WEIGHT, LOCAL_SERVER, AGENT_NAME,
-         RANDOM_PICKUP, DELIVERY_EVERY, DOMAIN_PATH, FORGET_AFTER };
+         RANDOM_PICKUP, DELIVERY_EVERY, DOMAIN_PATH, FORGET_AFTER, 
+         MULTI_DOMAIN_PATH };
 export default config;
