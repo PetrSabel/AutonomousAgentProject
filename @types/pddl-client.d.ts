@@ -1,9 +1,10 @@
 declare module '@unitn-asa/pddl-client' {
-    export function onlineSolver(pddlDomain: string, pddlProblem: string): Promise<{action: string}[] | void>
+    type PlannerAction = { action: string, args: any[] }
+    export function onlineSolver(pddlDomain: string, pddlProblem: string): Promise<PlannerAction[] | void>
     
     export class PddlExecutor {
         constructor(...actions: PddlAction[])
-        exec(plan: {action: string}[]): Promise<void>
+        exec(plan: PlannerAction[]): Promise<void>
     }
 
     export class PddlProblem {

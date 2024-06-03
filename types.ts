@@ -49,7 +49,7 @@ type Parcel = {
 
 type Direction = "left" | "right" | "up" | "down";
 // "wait" refers to the situation when the other agent is blocking the plan
-type Action = Direction | "pickup" | "putdown" | "wait";
+type Action = Direction | "pickup" | "putdown" | "wait" | "synch" | "exchange";
 
 type Desire = {
     // Explore: agent will to find new parcels
@@ -80,10 +80,16 @@ type Messages = {
 } | {
     type: "greeting",
     content: string 
+} | {
+    type: "plan",
+    content: Plan 
 }
+
+type Point = { x: number, y: number };
+
 
 export { 
     Direction, TileInfo, PassableTile, EmptyTile, Tile,
     ParcelInfo, Parcel, AgentDesciption,
-    Desire, Action, Plan, Estimation, Messages
+    Desire, Action, Plan, Estimation, Messages, Point
 };

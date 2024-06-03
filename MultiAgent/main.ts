@@ -1,13 +1,15 @@
 import { MultiAgent } from "../MultiAgent/agent.js";
-import { AGENT_NAME, LOCAL_SERVER, default as config } from "../config.js"
+import { AGENT_NAME, DPPL_PLANNING, LOCAL_SERVER, default as config } from "../config.js"
 import { create_socket, map, map_config, map_size, personal_info } from "../SingleAgent/socket.js";
+import { plan_and_coors_astar, plan_and_coors_multipddl, plan_and_coors_pddl } from "../SingleAgent/auxiliary.js";
 
 // TODO: launch planner at the beginning from all tiles to each other and cache the results
 //      maybe more possible plans for the same one (in case of block) OR if blocked make a random move OR recompute (but difficult)
 //      4 plan for each direction blocked
 
 const host = LOCAL_SERVER? config.local.host : config.remote.host;
-const token = LOCAL_SERVER? config.local.token : config.remote.token;
+
+const planner = DPPL_PLANNING ? plan_and_coors_multipddl : plan_and_coors_astar;
 
 console.log("The server at ", host)
 
@@ -19,7 +21,7 @@ export function initialize_agent(socket: any) {
     if (map && map_config && map_size && personal_info.has(socket.id)) {
         let person = personal_info.get(socket.id)
         let agent = new MultiAgent(person.name, person.id, map, map_size, map_config, 
-            person.x, person.y, socket);
+            person.x, person.y, socket, planner);
         agents.push(agent)
         
         // Exchange public messages to recognize themselves

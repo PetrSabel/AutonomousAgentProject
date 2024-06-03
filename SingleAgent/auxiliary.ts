@@ -1,12 +1,16 @@
-import { Agent } from "./agent";
+import { Agent } from "./agent.js";
 import { Astar } from "./astar.js";
 import { generate_exact_position, isDelivery } from "./goals.js";
 import { generate_air_distance, nearestTiles } from "./heuristics.js";
-import { Action, Desire, Direction, Plan, Tile } from "../types";
+import { Action, Desire, Direction, Plan, Point, Tile } from "../types";
 import { plan } from "../Planning/plans.js";
 import { DPPL_PLANNING, DELIVERY_WEIGHT, DELIVERY_EVERY, RANDOM_PICKUP } from "../config.js";
+import { MultiAgent } from "../MultiAgent/agent.js";
+import { multiplan } from "../Planning/multiplans.js";
 
-export { plan_intention, compute_spawn_tiles, compute_dense_tiles, Point, detect_agents, DIRECTIONS }
+export { plan_intention, compute_spawn_tiles, compute_dense_tiles, detect_agents, DIRECTIONS, 
+    plan_and_coors_astar, plan_and_coors_pddl, plan_and_coors_multipddl
+}
 
 // Delivery has a discount on move cost
 const DIRECTIONS: Direction[] = ['up', 'right', 'down', 'left'];
@@ -107,12 +111,87 @@ async function plan_and_coors_pddl(agent: Agent, goal: "delivery" | Point, use_c
     let pos: [number, number] = [agent.x, agent.y];
 
     if (p) {
-        for (let a of p) {
-            pos = agent.next_position(pos[0], pos[1], a);
-        }
+        pos = compute_final_position(p, agent);
     }
 
     return [p, pos];
+}
+
+// Version PDDL
+async function plan_and_coors_multipddl(agent: MultiAgent, goal: "delivery" | Point, use_cache = true): 
+        Promise<[Action[] | undefined, [number, number]]> {
+
+    let key = agent.x + " " + agent.y + " ";
+    if (goal == "delivery") {
+        key += goal;
+        use_cache = false; // Exchange is not well cachable
+        agent.log("HERERERERE", use_cache)
+    } else {
+        key += (goal.x + " " + goal.y)
+    }
+
+    let p: Action[] | undefined = undefined;
+    // Check cache
+    if (use_cache && cached_plans.has(key)) {  // && !agent.blocked
+        agent.log("CACHE HIT", key)
+        p = cached_plans.get(key).slice();
+        if (goal == "delivery") {
+            plan(agent, "scored i", true).then((res) => {
+                    if (res) save_plan(key, res.slice())
+                }
+            )
+        } else {
+            let t = "t" + goal.x + "_" + goal.y;
+            plan(agent, "at " + "i " + t, true).then((res) => {
+                    if (res) save_plan(key, res.slice())
+                }
+            )
+        }
+    } else {
+        // Compute a plan from zero
+        agent.log("CACHE MISS", key)
+        if (goal == "delivery") {
+
+            let goal_description = "(or (scored i)"
+            for (let f of agent.friends) {
+                goal_description += " (scored " + f + ")";
+            }
+            goal_description += " )";
+
+            [p, agent.friend_plan] = await multiplan(agent, goal_description);
+        } else {
+            let t = "t" + goal.x + "_" + goal.y;
+            p = await plan(agent, "at " + "i " + t);
+        }
+
+        // Add to cache
+        if (p != undefined) {
+            console.log("SAVE to CACHE", key)
+            save_plan(key, p.slice());
+        } else {
+            // Special case: same start and goal 
+            if (goal !== "delivery" && goal.x == agent.x && goal.y == agent.y) {
+                save_plan(key, []);
+            }
+        }
+    }
+
+    let pos: [number, number] = [agent.x, agent.y];
+
+    if (p) {
+        pos = compute_final_position(p, agent);
+    }
+
+    return [p, pos];
+}
+
+function compute_final_position(plan: Action[], agent: Agent) {
+    let pos: [number, number] = [agent.x, agent.y];
+    for (let a of plan) {
+        pos = agent.next_position(pos[0], pos[1], a);
+    }
+
+    return pos;
 }
 
 function save_plan(key: string, plan: Action[]) {
@@ -122,7 +201,11 @@ function save_plan(key: string, plan: Action[]) {
 
 let plan_and_coors = DPPL_PLANNING ? plan_and_coors_pddl : plan_and_coors_astar;
 
-async function plan_intention(agent: Agent, desire: Desire, use_cache = true): Promise<[Plan | undefined, number, [number, number]]> {
+async function plan_intention(agent: Agent, desire: Desire,
+    planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>,
+        use_cache = true): 
+        Promise<[Plan | undefined, number, [number, number]]> {
+
     let plan: Action[] | undefined = undefined
     let score: number = 0
     let new_plan: Action[] | undefined = undefined;
@@ -133,7 +216,7 @@ async function plan_intention(agent: Agent, desire: Desire, use_cache = true): P
         case "deliver": {
             // Find deliver tiles
             // Route to the nearest delivery zone
-            [new_plan, coor] = await plan_and_coors(agent, "delivery", use_cache);
+            [new_plan, coor] = await planner(agent, "delivery", use_cache);
 
             
             if (new_plan) {
@@ -262,8 +345,6 @@ async function plan_intention(agent: Agent, desire: Desire, use_cache = true): P
             if (score < 0) {
                 score = Math.random() * RANDOM_PICKUP
             }
-
-            // Penalize intentions close to the other ally
             
             // Return plan
             return [plan, score, coor]
@@ -295,8 +376,6 @@ function detect_agents(x: number, y: number, agent: Agent): number {
 
     return res;
 }
-
-type Point = { x: number, y: number };
 
 function compute_spawn_tiles(map: Tile[][]): Point[] {
     let res = [];
@@ -332,8 +411,6 @@ function compute_dense_tiles(map: Tile[][]): Point[] {
         return trueCount;
     }
 
-
-    // TODO: move this computation to "map" handler and store inside the agent
     let maxTruePoints: Point[] = [];
 
     for (let i = 0; i < rows; i++) {
@@ -373,7 +450,6 @@ function compute_dense_tiles(map: Tile[][]): Point[] {
         })
     }
 
-    // TODO: retain only tiles with some spawn
     let res = maxTruePoints.filter((p) => getTrueCount(p) > 0);
     res = res.reverse().slice(0, Math.floor(maxTruePoints.length * 0.3));
     return shuffle(res);

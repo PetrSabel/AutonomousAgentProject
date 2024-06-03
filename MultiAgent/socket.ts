@@ -11,7 +11,7 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
         if (id === agent.id) {
             return;
         }
-        agent.log("new msg received from", name+'(' + id + '):', msg);
+        // agent.log("new msg received from", name+'(' + id + '):', msg);
         // Ignore wrong messages
         if (msg == undefined || msg.type == undefined) {
             // TODO: copy messages and send them around
@@ -19,7 +19,7 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
         }
         
         if (agent.friends.includes(id)) {
-            agent.log("HI")
+            
         } else {
             switch (msg.type) {
                 case "parcels": {
@@ -38,6 +38,12 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
                         agent.friends.push(id)
                         agent.log("New friend ", name, id)
                     }
+                    break;
+                }
+
+                case "plan": {
+                    console.log('OK')
+                    reply("yes");  
                     break;
                 }
 
@@ -71,7 +77,10 @@ function set_multiagent_listeners(socket: any, agent: MultiAgent) {
         // agent.log("Sharing agents")
         // Communicate to friends
         for (let friend of agent.friends) { 
-            socket.emit("say", friend, agents)
+            agent.say(friend, {
+                type: "agents",
+                content: agents
+            })
         }
     });
 
@@ -82,7 +91,10 @@ function set_multiagent_listeners(socket: any, agent: MultiAgent) {
         // agent.log("Sharing parcels")
         // Communicate to friends
         for (let friend of agent.friends) { 
-            socket.emit("say", friend, parcels)
+            agent.say(friend, {
+                type: "parcels",
+                content: parcels
+            })
         }
     });
 

@@ -1,4 +1,4 @@
-import { Desire, Plan } from "../types";
+import { Action, Desire, Plan, Point } from "../types";
 import { Agent } from "./agent"
 import { plan_intention } from "./auxiliary.js";
 
@@ -30,13 +30,24 @@ export class Intention {
         this.planning = false 
     }
 
-    async compute_plan(agent: Agent) {
-        [this.currentPlan, this.cost, [this.x, this.y]] = await plan_intention(agent, this.desire, !agent.blocked);
+    async compute_plan(agent: Agent, 
+                        planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>) {
+        
+        try {
+            [this.currentPlan, this.cost, [this.x, this.y]] = await plan_intention(agent, this.desire, planner, !agent.blocked);
+        } catch(e) {
+            console.error("Error during intention planning", e);
+            this.currentPlan = undefined;
+            this.cost = 0;
+            this.x = undefined;
+            this.y = undefined;
+        }
     }
 
-    async compute_planB(agent: Agent) {
+    async compute_planB(agent: Agent,
+        planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>) {
         let _cost: number;
-        [this.planB, _cost, [this.x, this.y]] = await plan_intention(agent, this.desire);
+        [this.planB, _cost, [this.x, this.y]] = await plan_intention(agent, this.desire, planner);
     }
 
     async step(agent: Agent) {
@@ -51,34 +62,7 @@ export class Intention {
 
         let action = this.currentPlan[0];
         try {
-            switch (action) {
-                case "pickup": {
-                    await agent.pickup()
-                    break;
-                }
-                case "putdown": {
-                    await agent.putdown()
-                    break;
-                }
-                
-                case "wait":
-                    // TODO: decide what to do
-                    // this.replan(agent)
-                    // agent.blocked = true 
-                    break;
-            
-                case "left":
-                case "right":
-                case "up":
-                case "down":
-                    await agent.move(action)
-                    break;
-
-                default: {
-                    console.error(action);
-                    throw new Error("UNRECOGNIZED COMMAND")
-                }
-            }
+            await agent.execute_action(action);
 
             // Remove executed action
             this.currentPlan.shift();

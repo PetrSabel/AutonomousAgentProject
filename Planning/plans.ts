@@ -1,12 +1,11 @@
 import { onlineSolver, PddlExecutor, PddlProblem, Beliefset, PddlDomain, PddlAction } from "@unitn-asa/pddl-client";
 import { readFileSync } from "fs";
 import { Agent } from "../SingleAgent/agent.js";
-import { Point } from "../SingleAgent/auxiliary.js";
-import { Action } from "../types.js";
+import { Action, Point } from "../types.js";
 import { DOMAIN_PATH } from "../config.js";
 
 export async function plan(agent: Agent, goal: string, for_cache: boolean = false, position?: Point): Promise<Action[] | undefined> {
-
+    
     /** BeliefSet */
     const myBeliefset = agent.get_beliefset(goal, for_cache, position);
 

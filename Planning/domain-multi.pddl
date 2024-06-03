@@ -5,6 +5,7 @@
         (agent ?a)
         (me ?a)
         (friend ?a)
+        (ally ?f)
         (carry ?me)
         (scored ?me) ;; todo: change with boolean var
         
@@ -24,7 +25,7 @@
     (:action right
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (friend ?me))
+            (or (me ?me) (ally ?me))
             ;;(me ?me)
             (at ?me ?from)
             (right ?from ?to)
@@ -41,7 +42,7 @@
     (:action left
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (friend ?me))
+            (or (me ?me) (ally ?me))
             ;;(me ?me)
             (at ?me ?from)
             (left ?from ?to)
@@ -58,7 +59,7 @@
     (:action up
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (friend ?me))
+            (or (me ?me) (ally ?me))
             ;;(me ?me)
             (at ?me ?from)
             (up ?from ?to)
@@ -75,7 +76,7 @@
     (:action down
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (friend ?me))
+            (or (me ?me) (ally ?me))
             ;;(me ?me)
             (at ?me ?from)
             (down ?from ?to)
@@ -95,7 +96,7 @@
     (:action deliver
         :parameters (?me ?pos)
         :precondition (and
-            (or (me ?me) (friend ?me))
+            (or (me ?me) (ally ?me))
             ;;(me ?me)
             (tile ?pos)
             (at ?me ?pos)
@@ -111,7 +112,7 @@
     (:action pickup
         :parameters (?me ?pos)
         :precondition (and
-            (or (me ?me) (friend ?me))
+            (or (me ?me) (ally ?me))
             ;;(me ?me)
             (tile ?pos)
             (at ?me ?pos)
@@ -128,7 +129,7 @@
         :precondition (and 
             (me ?me)
             (carry ?me)
-            (friend ?f)
+            (ally ?f)
             (tile ?me_pos) (tile ?f_pos)
             (at ?me ?me_pos) (at ?f ?f_pos)
             (or 
@@ -141,6 +142,18 @@
         :effect (and 
             (not (carry ?me))
             (withparcel ?me_pos)
+        )
+    )
+    
+    (:action synch
+        :parameters (?f)
+        :precondition (and
+            (friend ?f)
+            (not (ally ?f))
+            (not (me ?f))
+        )
+        :effect (and
+            (ally ?f) 
         )
     )
 )

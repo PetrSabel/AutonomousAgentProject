@@ -36,6 +36,7 @@
         ;; agent 
         ;; friend 
         (friend f)
+        ;;(friend f) 
         ;; at 
     )
 

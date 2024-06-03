@@ -1,7 +1,7 @@
 import { PriorityQueue } from "@datastructures-js/priority-queue";
 import { Intention } from "./intention.js";
-import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption, Plan } from "../types"
-import { DIRECTIONS, Point, compute_dense_tiles, compute_spawn_tiles, detect_agents } from "./auxiliary.js";
+import { Tile, ParcelInfo, Parcel, Direction, Desire, Action, AgentDesciption, Plan, Point } from "../types"
+import { DIRECTIONS, compute_dense_tiles, compute_spawn_tiles, detect_agents } from "./auxiliary.js";
 import { set_agent_listeners } from "./socket.js";
 import { FORGET_AFTER } from "../config.js";
 import { Beliefset } from "@unitn-asa/pddl-client";
@@ -48,8 +48,12 @@ export class Agent {
     desires: Desire[]
     new_desires: Desire[]
 
+    planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>
+
     constructor(name: string, id: string, map: Tile[][], map_size: [number, number], map_config: any, 
-            x: number, y: number, socket: any) {
+            x: number, y: number, socket: any, 
+            planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>) {
+
         // Sets minimal required information
         this.map = map;
         this.map_size = map_size;
@@ -58,6 +62,7 @@ export class Agent {
         this.id = id;
         this.name = name;
         this.config = map_config;
+        this.planner = planner
 
         this.socket = socket; 
         this.move_cost = this.config.MOVEMENT_DURATION/1000;
@@ -179,7 +184,7 @@ export class Agent {
         // )
         // this.log("TO CACHE", prom.length)
 
-        this.#loop()
+        this.loop()
     }
 
     createIntention(desire: Desire) {
@@ -232,8 +237,41 @@ export class Agent {
         } ) );
     }
 
+    async execute_action(action: Action) {
+        switch (action) {
+            case "pickup": {
+                await this.pickup()
+                break;
+            }
+            case "putdown": {
+                await this.putdown()
+                break;
+            }
+            
+            case "wait": {
+                // TODO: decide what to do
+                // this.replan(agent)
+                // agent.blocked = true 
+                break;
+            }
+        
+            case "left":
+            case "right":
+            case "up":
+            case "down": {
+                await this.move(action)
+                break;
+            }
+
+            default: {
+                console.error(action);
+                throw new Error("UNRECOGNIZED COMMAND")
+            }
+        }
+    }
+
     // Main loop
-    async #loop() {
+    async loop() {
         while (true) {
             // console.log("------------------------------------------")
             // console.error("New iteration")
@@ -243,9 +281,8 @@ export class Agent {
 
                 this.log("\n\nCOMPUTING", options.length ,"options.....")
                 // console.time("-------------------------------")
-                await Promise.all(options.map(opt => opt.compute_plan(this)));
+                await Promise.all(options.map(opt => opt.compute_plan(this, this.planner)));
                 // console.timeEnd("-------------------------------")
-                // console.log(options)
                 // await new Promise(res => setTimeout(res, 5000));
                 
                 let queue = this.filterOptions(options)
@@ -267,7 +304,7 @@ export class Agent {
             }
 
             // break;
-            // await new Promise(res => setTimeout(res, 2000));
+            await new Promise(res => setTimeout(res, 5000));
         }
     }
 
@@ -317,10 +354,6 @@ export class Agent {
         options = options.filter(option => option.cost >= 0.0)
         let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1)
         
-        // console.log("\n\nFiltered are")
-        // for (let opt of options) {
-        //     console.log(opt)
-        // }
 
         for (let option of options) {
             queue.push(option)
@@ -353,7 +386,7 @@ export class Agent {
                     let new_options = this.get_new_options()
     
                     for (let option of new_options) {
-                        await option.compute_plan(this);
+                        await option.compute_plan(this, this.planner);
                     }
     
                     let filtered = this.filterOptions(new_options)
