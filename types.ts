@@ -54,7 +54,7 @@ type Action = Direction | "pickup" | "putdown" | "wait" | "synch" | "exchange";
 type Desire = {
     // Explore: agent will to find new parcels
     // Deliver: agent will to deliver carried parcels
-    description: "explore" | "deliver",
+    description: "explore" | "deliver" | "exchange",
     tries_number: number,
 } | {
     // Pickup: agent will to pickup a particular parcel, created when the agent see new parcel
@@ -82,7 +82,18 @@ type Messages = {
     content: string 
 } | {
     type: "plan",
-    content: Plan 
+    content: { 
+        plan:Plan,
+        x: number,
+        y:number
+    }
+} | {
+    type: "friend",
+    content: AgentDesciption
+} | {
+    type: "failure"
+} | {
+    type: "done"
 }
 
 type Point = { x: number, y: number };

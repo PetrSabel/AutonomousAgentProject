@@ -18,14 +18,14 @@ const config = {
 }
 
 const DPPL_PLANNING: boolean = true;
-const DELIVERY_WEIGHT: number = 3.0;  // Add more score for delivery because of planning 
+const DELIVERY_WEIGHT: number = 0.3;  // Add more score for delivery because of planning 
 const LOCAL_SERVER: boolean = true;
 const AGENT_NAME: string = "Autonomix";
 const RANDOM_PICKUP: number = 3;  // Factor to set preference of pickup over normal explore
 const DELIVERY_EVERY: number = 60;  // Specify how often the agent must deliver packages
 const MULTI_DOMAIN_PATH = "Planning/domain-multi.pddl";
 const DOMAIN_PATH = "Planning/domain-deliveroo.pddl";
-const FORGET_AFTER: number = 500; // ms
+const FORGET_AFTER: number = 5000; // ms
 // TODO: add path to plan library
 
 export { DPPL_PLANNING, DELIVERY_WEIGHT, LOCAL_SERVER, AGENT_NAME,

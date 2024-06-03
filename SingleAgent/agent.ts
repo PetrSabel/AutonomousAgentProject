@@ -43,6 +43,7 @@ export class Agent {
     dense_visited: number
 
     move_cost: number;
+    dont_disturb: boolean;
 
     // BDI
     desires: Desire[]
@@ -74,6 +75,8 @@ export class Agent {
         this.score = 0;
         this.agents = new Map();
         // this.current_optimal_cost = 0.0; // The optimal cost executing an intention 
+
+        this.dont_disturb = false; // TODO: use to execute special actions
 
         this.last_deliver_time = Date.now();
 
@@ -294,7 +297,11 @@ export class Agent {
 
                 let first = queue.pop();
                 if (first) {
-                    await this.executeIntention(first);
+                    if (this.current_intention != undefined && this.current_intention.executing == true) {
+                        await new Promise(res => setTimeout(res, 100));
+                    } else {
+                        await this.executeIntention(first);
+                    }
                 }
 
                 await new Promise(res => setTimeout(res, 5));
@@ -304,7 +311,7 @@ export class Agent {
             }
 
             // break;
-            await new Promise(res => setTimeout(res, 5000));
+            // await new Promise(res => setTimeout(res, 5000));
         }
     }
 
@@ -410,11 +417,15 @@ export class Agent {
 
             const dumb = true;
             if (dumb) {
-                reachable = this.current_intention.executing && !this.blocked;
+                reachable = this.current_intention != undefined && this.current_intention.executing && !this.blocked;
             } else {
-                reachable = this.current_intention.executing && !this.blocked && this.check_reachable();
+                reachable = this.current_intention != undefined && this.current_intention.executing && !this.blocked && this.check_reachable();
             }
         } while (reachable)
+
+        if (this.current_intention != undefined) {
+            this.current_intention.stop()
+        }
 
         // Give a possibility to update beliefs (asynchronously)
         await new Promise(res => setTimeout(res, 50));
@@ -614,11 +625,12 @@ export class Agent {
     forget_agent(x: number, y: number, a: AgentDesciption) {
         let my_x = Math.round(this.x);
         let my_y = Math.round(this.y);
-        const vision_distance = this.config.AGENTS_OBSERVATION_DISTANCE;
+        const vision_distance = this.config.AGENTS_OBSERVATION_DISTANCE + 1;
 
         // Forget an agent if no more visible
         if (Math.abs(my_x - x) + Math.abs(my_y - y) > vision_distance) {
             if (this.map[x][y]!.agentID === a.id) {
+                this.log("FORGETTING", a)
                 this.delete_agent(a);
             }
         } else if (this.map[x][y]!.agentID == null) {
@@ -643,6 +655,35 @@ export class Agent {
             }
 
             this.agents.delete(a.id);
+        }
+    }
+
+    update_agent(a: AgentDesciption) {
+        if (a.id === this.id) {
+            return;
+        }
+        // Save or update new agent
+        this.agents.set(a.id, a);
+
+        // Remove old position
+        for (let x = 0; x < this.map_size[0]; x += 1) {
+            for (let y = 0; y < this.map_size[1]; y += 1){
+                if (this.map[x][y] != null && this.map[x][y].agentID === a.id) {
+                    this.map[x][y].agentID = null;
+                }
+            }
+        }
+
+        let x = Math.round(a.x)
+        let y = Math.round(a.y)
+
+        // Remember the agent in that position for a bit
+        if (this.map[x][y]) {
+            this.map[x][y]!.agentID = a.id;
+
+            setTimeout(() => {
+                this.forget_agent(x, y, a)
+            }, FORGET_AFTER) 
         }
     }
 

@@ -11,6 +11,8 @@ export class MultiAgent extends Agent {
     friends: string[]
     friend_plan: Plan | undefined 
     chosen_one: string | undefined 
+    exchanging: boolean
+    continue: boolean 
 
     constructor(name: string, id: string, map: Tile[][], map_size: [number, number], map_config: any, 
             x: number, y: number, socket: any, 
@@ -21,6 +23,8 @@ export class MultiAgent extends Agent {
         this.friends = []
         this.friend_plan = undefined 
         this.chosen_one = undefined 
+        this.exchanging = false 
+        this.continue = true
 
         set_communication_listeners(this.socket, this);
     }
@@ -80,7 +84,7 @@ export class MultiAgent extends Agent {
     }
 
     async execute_action(action: Action) {
-        this.log("ACTION", action)
+        // this.log("ACTION", action)
         switch (action) {
             case "pickup": {
                 await this.pickup()
@@ -92,9 +96,8 @@ export class MultiAgent extends Agent {
             }
             
             case "wait": {
-                // TODO: decide what to do
-                // this.replan(agent)
-                // agent.blocked = true 
+                // wait other agent to finish move
+                await this.wait()
                 break;
             }
         
@@ -102,7 +105,7 @@ export class MultiAgent extends Agent {
             case "right":
             case "up":
             case "down": {
-                await this.move(action).catch(() => this.log("FAILED MOVE"))
+                await this.move(action)
                 break;
             }
 
@@ -122,8 +125,14 @@ export class MultiAgent extends Agent {
         }
     }
 
+    async wait() {
+        this.log("Waiting for", this.config.MOVEMENT_DURATION * 1.5 || 500);
+        await new Promise(res => setTimeout(res, this.config.MOVEMENT_DURATION * 1.5 || 500));
+    }
+
     async exchange() {
-        throw new Error("Method not implemented.");
+        await this.putdown();
+        // throw new Error("Method not implemented.");
     }
 
     async say(friend: string, content: Messages) {
@@ -131,21 +140,39 @@ export class MultiAgent extends Agent {
     }
 
     async ask(friend: string, content: Messages): Promise<any> {
-        return this.socket.emit("ask", friend, content);
+        return new Promise( (success) => {
+            this.socket.emit( 'ask', friend, content, async ( reply: any ) =>  {
+                success( reply );
+            } );
+        } )
     }
 
     async synch() {
         if (this.chosen_one) {
             if (this.friend_plan) {
-                let reply = await this.ask(this.chosen_one, {
-                    type: "plan",
-                    content: this.friend_plan
-                });
-                if (reply == "yes") {
-                    console.log("yes")
-                } else {
-                    console.log("refused")
-                    // throw new Error("Collaboration refused");
+                this.log("SYNCHING with", this.chosen_one, " about ", this.friend_plan)
+                this.log("------------------------------------------------------------------\n\n\n")
+                // await new Promise(res => setTimeout(res, 2000));
+
+                let friend_desc = this.agents.get(this.chosen_one)
+                if (friend_desc) {
+                    let reply = await this.ask(this.chosen_one, {
+                        type: "plan",
+                        content: {
+                            plan: this.friend_plan,
+                            x: Math.round(friend_desc.x),
+                            y: Math.round(friend_desc.y)
+                        }
+                    });
+
+                    if (reply == "yes") {
+                        this.log("yes")
+                        this.exchanging = true;
+                    } else {
+                        this.log("refused")
+                        this.exchanging = false;
+                        // throw new Error("Collaboration refused");
+                    }
                 }
             }
         }

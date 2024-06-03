@@ -37,8 +37,10 @@ export async function plan(agent: Agent, goal: string, for_cache: boolean = fals
     if (plan) {
         // Rewrite plan to the list of moves
         for (let a of plan) {
-            if (a.action === "deliver"){
+            if (a.action === "DELIVER"){
                 moves.push("putdown");
+            } else if (a.action === "REACH-GOAL") {
+                // ignore
             } else {
                 moves.push(a.action.toLowerCase())
             }

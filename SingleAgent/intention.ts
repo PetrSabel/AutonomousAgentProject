@@ -67,11 +67,11 @@ export class Intention {
             // Remove executed action
             this.currentPlan.shift();
         } catch(e) {
-            // console.log("ACTION BLOCKED", e)
+            agent.log("ACTION BLOCKED", action)
             // TODO: Try to solve the problem
             // if (this.planB) {
                 // Replan failed
-                agent.blocked = true;
+            agent.blocked = true;
             // } else {
             //     // Try to replan
             //     await this.compute_planB(agent);

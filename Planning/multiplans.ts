@@ -9,7 +9,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
                                 : Promise<[Action[] | undefined, Action[] | undefined]> {
 
 
-    agent.log("MULTIPLAN")
+    agent.log("MULTIPLAN", agent.agents)
     /** BeliefSet */
     const myBeliefset = new Beliefset();
     // My info
@@ -18,29 +18,37 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
     // Friends info
     if (agent.friends) {
         for (let f of agent.friends) {
-            myBeliefset.declare("friend " + f)
-            myBeliefset.undeclare("scored " + f)
+            let tmp_f = "f_" + f;
+            myBeliefset.declare("friend " + tmp_f)
+            myBeliefset.undeclare("scored " + tmp_f)
         }
     }
 
+    let real_goal = goal;
     if (goal === "scored i") {
-        if (agent.friends) {
-            goal = "or (scored i)"
+        if (agent.friends.length > 0) {
+            real_goal = "or (scored i)"
             for (let f of agent.friends) {
-                goal += " (scored " + f + ")" 
+                let tmp_f = "f_" + f;
+                real_goal += " (scored " + tmp_f + ")" 
             }
         } else {
-            goal = "scored i";
+            real_goal = "scored i";
         }
         
+    }
+
+    if (agent.carry.length > 0) {
         myBeliefset.declare("carry i")
         agent.log("Im carrying")
     } else {
         myBeliefset.undeclare("carry i")
+        agent.log("NOT CARRYING")
     }
 
     let t = (position != undefined) ? "t" + position.x + "_" + position.y : "t" + agent.x + "_" + agent.y;
     myBeliefset.declare("at i " + t)
+    let my_t = t.slice();
 
     // Map
     for (let row of agent.map) {
@@ -58,6 +66,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
                 }
                 // Other agents positions
                 if (tile.agentID && !for_cache) {
+                    // agent.log("TILE IS OCCUPIED", t, tile.agentID)
                     myBeliefset.undeclare("free " + t)
                 } else {
                     myBeliefset.declare("free " + t)
@@ -83,12 +92,16 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
         }
     }
 
+    // My position
+    myBeliefset.undeclare("free " + my_t)
+
     // Declare position of friends
     for (let f of agent.friends) {
         let friend = agent.agents.get(f);
         if (friend) {
             let t = " t" + Math.round(friend.x) + "_" + Math.round(friend.y);
-            myBeliefset.declare("at " + f + t)
+            let tmp_f = "f_" + f;
+            myBeliefset.declare("at " + tmp_f + t)
         }
     }
 
@@ -97,8 +110,8 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
 
     // Problem 
 
-    agent.log("GOAL IS", goal.slice(1, -1), "+++++")
-    let problem = new PddlProblem("first", objects.join("\n  "), init_situation, goal.slice(1, -1))
+    agent.log("GOAL IS", real_goal, "+++++")
+    let problem = new PddlProblem("first", objects.join("\n  "), init_situation, real_goal)
     
     let problem_string = problem.toPddlString()
 
@@ -111,7 +124,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
     try {
         plan = await onlineSolver(DOMAIN_STRING, problem_string);
         problem.saveToFile() // DEBUG
-        agent.log("SAVED", agent.carry)
+        agent.log("SAVED", agent.agents)
 
     } catch(e) {
         console.error("Solver ERROR", e)
@@ -128,22 +141,27 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
             switch (a.action) {
                 case "DELIVER": {
                     moves.push("putdown");
-                    break
+                    friend_moves.push("wait");
+                    break;
                 };
                 case "SYNCH": {
                     if (a.args[0]) {
+                        agent.chosen_one = a.args[0].toLowerCase().slice(2);
                         moves.push("synch");
-                        agent.chosen_one = a.args[0];
                     } else {
                         throw new Error("Synchronization with nobody");
                     }
+
                     break;
                 };
+
                 case "EXCHANGE": {
                     moves.push("exchange");
                     friend_moves.push("exchange");
+
                     break;
                 };
+
                 case "RIGHT":
                 case "LEFT":
                 case "DOWN":
@@ -152,24 +170,27 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
                 case "PUTDOWN": {
                     if (a.args[0] == 'I') {
                         moves.push(a.action.toLowerCase());
-                    } else if (a.args[0] == 'F') {
+                        friend_moves.push("wait");
+                    } else if (a.args[0]) {
                         friend_moves.push(a.action.toLowerCase());
+                        moves.push("wait");
                     } else {
                         throw new Error("Unrecognized args for action returned from planner");
                     }
                     break;
                 };
 
+                case "REACH-GOAL": break; // ignore
+
                 default: {
+                    console.error("A: ", a)
                     throw new Error("Unrecognized action returned from planner");
                 }
-            } 
-            if (a.action === "DELIVER"){
-                moves.push("putdown");
-            } else {
-                moves.push(a.action.toLowerCase())
             }
         }
+
+        moves.push("wait")
+        friend_moves.push("wait")
 
     } else {
         agent.log("IMPOSSIBLE INTENTION", goal);

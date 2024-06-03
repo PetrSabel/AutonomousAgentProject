@@ -132,7 +132,6 @@ function set_agent_listeners(socket: any, agent: Agent) {
 }
 
 function update_agents_beliefs(agent: Agent, agents: AgentDesciption[]) {
-    // console.log("agents sensing", agents)
     // Removes old beliefs
     const vision_distance: number | "infinite" = agent.config.AGENTS_OBSERVATION_DISTANCE;
     let to_delete: AgentDesciption[] = []
@@ -162,43 +161,13 @@ function update_agents_beliefs(agent: Agent, agents: AgentDesciption[]) {
     for (let a of agents) {
         // If some other agent
         if (a.id !== agent.id) {
-            // TODO: consider 2 cell when moving
-            let x = Math.round(a.x)
-            let y = Math.round(a.y)
-
-            // Remove old position
-            if (agent.agents.has(a.id)) {
-                // let old: AgentDesciption = agent.agents.get(a.id)!;
-                // let old_x = Math.round(old.x)
-                // let old_y = Math.round(old.y) 
-                
-                // if (agent.map[old_x][old_y]) {
-                //     agent.map[old_x][old_y]!.agentID = null;
-                // }
-
-                for (let x = 0; x < agent.map_size[0]; x += 1) {
-                    for (let y = 0; y < agent.map_size[1]; y += 1){
-                        if (agent.map[x][y] != null && agent.map[x][y].agentID === a.id) {
-                            agent.map[x][y].agentID = null;
-                        }
-                    }
-                }
-            } else {
-                // Save new agent
-                agent.agents.set(a.id, a);
-            }
-
-            // Remember the agent in that position for a bit
-            if (agent.map[x][y]) {
-                agent.map[x][y]!.agentID = a.id;
-
-                setTimeout(() => {
-                    agent.forget_agent(x, y, a)
-                }, FORGET_AFTER) 
-            }
+            // TODO: consider 2 cell when moving 
+            agent.update_agent(a)
         }
     }
     // TODO: consider if they are moving   
+
+    // agent.log("NEW AGENT BELIEFS", agent.agents)
 }
 
 function update_parcels_beliefs(agent: Agent, parcels: ParcelInfo[]) {

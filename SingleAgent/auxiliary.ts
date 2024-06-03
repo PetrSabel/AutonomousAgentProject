@@ -72,7 +72,7 @@ async function plan_and_coors_pddl(agent: Agent, goal: "delivery" | Point, use_c
     let p: Action[] | undefined = undefined;
     // Check cache
     if (use_cache && cached_plans.has(key)) {  // && !agent.blocked
-        agent.log("CACHE HIT", key)
+        // agent.log("CACHE HIT", key)
         p = cached_plans.get(key).slice();
         if (goal == "delivery") {
             plan(agent, "scored i", true).then((res) => {
@@ -133,7 +133,7 @@ async function plan_and_coors_multipddl(agent: MultiAgent, goal: "delivery" | Po
     let p: Action[] | undefined = undefined;
     // Check cache
     if (use_cache && cached_plans.has(key)) {  // && !agent.blocked
-        agent.log("CACHE HIT", key)
+        // agent.log("CACHE HIT", key)
         p = cached_plans.get(key).slice();
         if (goal == "delivery") {
             plan(agent, "scored i", true).then((res) => {
@@ -152,11 +152,7 @@ async function plan_and_coors_multipddl(agent: MultiAgent, goal: "delivery" | Po
         agent.log("CACHE MISS", key)
         if (goal == "delivery") {
 
-            let goal_description = "(or (scored i)"
-            for (let f of agent.friends) {
-                goal_description += " (scored " + f + ")";
-            }
-            goal_description += " )";
+            let goal_description = "scored i";
 
             [p, agent.friend_plan] = await multiplan(agent, goal_description);
         } else {
@@ -307,7 +303,7 @@ async function plan_intention(agent: Agent, desire: Desire,
                     let index = Math.floor(Math.random()*available.length);
                     plan = [available[index]];
                 } else {
-                    agent.log("STRANGE", agent.agents, agent.map)
+                    // agent.log("COMPLETELY BLOCKED", agent.agents, agent.map)
                 }
 
                 agent.log("AVAILABLE", available, plan)
