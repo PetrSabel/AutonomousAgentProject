@@ -34,7 +34,8 @@ export class Agent {
     last_deliver_time: number;
 
     current_intention?: Intention 
-    blocked: boolean
+    blocked: boolean 
+    stopped: boolean
 
     // Configuration of the level
     config: any;
@@ -76,7 +77,8 @@ export class Agent {
         this.agents = new Map();
         // this.current_optimal_cost = 0.0; // The optimal cost executing an intention 
 
-        this.dont_disturb = false; // TODO: use to execute special actions
+        this.dont_disturb = false; 
+        this.stopped = false;
 
         this.last_deliver_time = Date.now();
 
@@ -157,6 +159,20 @@ export class Agent {
         set_agent_listeners(this.socket, this);
     }
 
+    reset() {
+        this.current_intention = undefined;
+        this.dont_disturb = false;
+        this.blocked = false;
+        this.stopped = false;
+    }
+
+    stop() {
+        this.current_intention = undefined;
+        this.dont_disturb = true;
+        this.blocked = true;
+        this.stopped = true;
+    }
+
     start() {
         this.log("Launching agent!")
         this.setListeners()
@@ -191,16 +207,22 @@ export class Agent {
     }
 
     createIntention(desire: Desire) {
-        return new Intention(desire);
+        if (desire.description === "deliver") {
+            return new Intention(desire, true)
+        } else {
+            return new Intention(desire);
+        }
     }
 
     changeIntention(new_intention: Intention) {
-        if (this.current_intention) {
-            if (this.current_intention.estimateProfit() < new_intention.estimateProfit()) {
-                this.executeIntention(new_intention)
+        if (!this.dont_disturb) {
+            if (this.current_intention) {
+                if (this.current_intention.estimateProfit() < new_intention.estimateProfit()) {
+                    this.executeIntention(new_intention)
+                }
+            } else {
+                this.executeIntention(new_intention)             
             }
-        } else {
-            this.executeIntention(new_intention)             
         }
     }
 
@@ -241,34 +263,36 @@ export class Agent {
     }
 
     async execute_action(action: Action) {
-        switch (action) {
-            case "pickup": {
-                await this.pickup()
-                break;
-            }
-            case "putdown": {
-                await this.putdown()
-                break;
-            }
+        if (!this.stopped) {
+            switch (action) {
+                case "pickup": {
+                    await this.pickup()
+                    break;
+                }
+                case "putdown": {
+                    await this.putdown()
+                    break;
+                }
+                
+                case "wait": {
+                    // TODO: decide what to do
+                    // this.replan(agent)
+                    // agent.blocked = true 
+                    break;
+                }
             
-            case "wait": {
-                // TODO: decide what to do
-                // this.replan(agent)
-                // agent.blocked = true 
-                break;
-            }
-        
-            case "left":
-            case "right":
-            case "up":
-            case "down": {
-                await this.move(action)
-                break;
-            }
+                case "left":
+                case "right":
+                case "up":
+                case "down": {
+                    await this.move(action)
+                    break;
+                }
 
-            default: {
-                console.error(action);
-                throw new Error("UNRECOGNIZED COMMAND")
+                default: {
+                    console.error(action);
+                    throw new Error("UNRECOGNIZED COMMAND")
+                }
             }
         }
     }
@@ -282,6 +306,11 @@ export class Agent {
             try {
                 let options = this.getOptions()
 
+                // this.log("OPTIONS")
+                // for (let q of options) {
+                //     this.log(q)
+                // }
+
                 this.log("\n\nCOMPUTING", options.length ,"options.....")
                 // console.time("-------------------------------")
                 await Promise.all(options.map(opt => opt.compute_plan(this, this.planner)));
@@ -290,9 +319,9 @@ export class Agent {
                 
                 let queue = this.filterOptions(options)
 
-                // console.log("QUEUE")
+                // this.log("QUEUE")
                 // for (let q of queue.toArray()) {
-                //     console.log(q)
+                //     this.log(q)
                 // }
 
                 let first = queue.pop();
@@ -357,13 +386,18 @@ export class Agent {
     // Return ordered list of options
     filterOptions(options: Intention[]) {
         // TODO: filter options based on some criteria
-        options = options.filter(option => option.currentPlan != undefined)
-        options = options.filter(option => option.cost >= 0.0)
-        let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1)
+        // this.log("UNFILTER")
+        // for (let o of options) {
+        //     this.log(o)
+        // }
+
+        options = options.filter(option => option.currentPlan != undefined);
+        options = options.filter(option => option.cost >= 0.0);
+        let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1, options)
         
 
         for (let option of options) {
-            queue.push(option)
+            // queue.push(option)
             if (option.desire.description == "deliver") {
                 // console.log("DELIVER COST = ", option.cost)
             }
@@ -373,17 +407,22 @@ export class Agent {
         return queue;
     }
 
-    async executeIntention(intention: Intention) {
+    async executeIntention(intention: Intention, ignoring: boolean = false) {
+        if (this.stopped) {
+            this.log("NOT EXECUTING because STOPPED")
+            return;
+        }
         this.blocked = false 
+        this.dont_disturb = ignoring;
         this.current_intention = intention;
         this.log("EXECUTING", intention.desire.description, intention.x, intention.y,
-                    "From", this.x, this.y, "SCORE", intention.cost)
+                    "From", this.x, this.y, "SCORE", intention.cost, "\n\n+++++++++++++++")
 
         let reachable: boolean;
         do {
             await this.reactive_behavior();
 
-            if (this.new_desires.length > 0) {
+            if (false) { // this.new_desires.length > 0
                 this.log("NEW DESIRES FOUND")
                 
                 if (this.current_intention != undefined && this.current_intention.desire.description == "deliver") {
@@ -425,10 +464,15 @@ export class Agent {
 
         if (this.current_intention != undefined) {
             this.current_intention.stop()
+            this.dont_disturb = false;
         }
 
         // Give a possibility to update beliefs (asynchronously)
         await new Promise(res => setTimeout(res, 50));
+    }
+
+    async timer(ms: number) {
+        await new Promise(res => setTimeout(res, ms));
     }
 
     async reactive_behavior() {
@@ -630,7 +674,7 @@ export class Agent {
         // Forget an agent if no more visible
         if (Math.abs(my_x - x) + Math.abs(my_y - y) > vision_distance) {
             if (this.map[x][y]!.agentID === a.id) {
-                this.log("FORGETTING", a)
+                // this.log("FORGETTING", a)
                 this.delete_agent(a);
             }
         } else if (this.map[x][y]!.agentID == null) {
@@ -662,6 +706,7 @@ export class Agent {
         if (a.id === this.id) {
             return;
         }
+
         // Save or update new agent
         this.agents.set(a.id, a);
 

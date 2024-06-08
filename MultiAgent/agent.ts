@@ -11,8 +11,10 @@ export class MultiAgent extends Agent {
     friends: string[]
     friend_plan: Plan | undefined 
     chosen_one: string | undefined 
+    chosen_coors: Point | undefined 
     exchanging: boolean
     continue: boolean 
+    waiting: boolean
 
     constructor(name: string, id: string, map: Tile[][], map_size: [number, number], map_config: any, 
             x: number, y: number, socket: any, 
@@ -25,6 +27,7 @@ export class MultiAgent extends Agent {
         this.chosen_one = undefined 
         this.exchanging = false 
         this.continue = true
+        this.waiting = false
 
         set_communication_listeners(this.socket, this);
     }
@@ -33,7 +36,6 @@ export class MultiAgent extends Agent {
     setListeners() {
         set_multiagent_listeners(this.socket, this);
     }
-
 
     setup_communication() {
         this.log("MULTI")
@@ -45,8 +47,6 @@ export class MultiAgent extends Agent {
 
     // Return ordered list of options
     filterOptions(options: Intention[]) {
-
-        // TODO: filter options based on some criteria
         options = options.filter(option => option.currentPlan != undefined)
         options = options.filter(option => option.cost >= 0.0)
 
@@ -70,21 +70,12 @@ export class MultiAgent extends Agent {
             }
         }
 
-        let queue = new PriorityQueue((a: Intention, b: Intention) => cost(this, a) > cost(this, b) ? -1 : 1)
-
-        for (let option of options) {
-            queue.push(option)
-            if (option.desire.description == "deliver") {
-                // console.log("DELIVER COST = ", option.cost)
-            }
-            // TODO: consider to combine deliver with some pickup (if aligned)
-        }
-
+        let queue = new PriorityQueue((a: Intention, b: Intention) => cost(this, a) > cost(this, b) ? -1 : 1, options)
         return queue;
     }
 
     async execute_action(action: Action) {
-        // this.log("ACTION", action)
+        this.log("ACTION", action)
         switch (action) {
             case "pickup": {
                 await this.pickup()
@@ -119,20 +110,34 @@ export class MultiAgent extends Agent {
             }
 
             default: {
-                console.error(action);
+                console.error("ACTION/", action,"/");
                 throw new Error("UNRECOGNIZED COMMAND")
             }
+        }
+
+        if (this.exchanging && this.chosen_one != undefined) {
+            // Notify that you have finished the action
+            this.say(this.chosen_one, {type: "unwait"})
         }
     }
 
     async wait() {
-        this.log("Waiting for", this.config.MOVEMENT_DURATION * 1.5 || 500);
-        await new Promise(res => setTimeout(res, this.config.MOVEMENT_DURATION * 1.5 || 500));
+        this.waiting = true;
+        while (true && this.chosen_one != undefined) {        
+            this.log("Waiting for ", this.chosen_one, "to finish")
+            this.say(this.chosen_one, {type: "wait"})
+            if (this.waiting) {
+                await new Promise(res => setTimeout(res, this.config.MOVEMENT_DURATION|| 500));
+            } else {
+                break;
+            }
+        }
+        this.waiting = false;
+        await new Promise(res => setTimeout(res, 50))
     }
 
     async exchange() {
         await this.putdown();
-        // throw new Error("Method not implemented.");
     }
 
     async say(friend: string, content: Messages) {
@@ -148,32 +153,31 @@ export class MultiAgent extends Agent {
     }
 
     async synch() {
-        if (this.chosen_one) {
+        if (this.chosen_one && this.chosen_coors) {
             if (this.friend_plan) {
-                this.log("SYNCHING with", this.chosen_one, " about ", this.friend_plan)
+                this.log("SYNCHING with", this.chosen_one, this.current_intention.currentPlan)
                 this.log("------------------------------------------------------------------\n\n\n")
-                // await new Promise(res => setTimeout(res, 2000));
-
-                let friend_desc = this.agents.get(this.chosen_one)
-                if (friend_desc) {
-                    let reply = await this.ask(this.chosen_one, {
-                        type: "plan",
-                        content: {
-                            plan: this.friend_plan,
-                            x: Math.round(friend_desc.x),
-                            y: Math.round(friend_desc.y)
-                        }
-                    });
-
-                    if (reply == "yes") {
-                        this.log("yes")
-                        this.exchanging = true;
-                    } else {
-                        this.log("refused")
-                        this.exchanging = false;
-                        // throw new Error("Collaboration refused");
+                
+                let reply = await this.ask(this.chosen_one, {
+                    type: "plan",
+                    content: {
+                        plan: this.friend_plan,
+                        x: Math.round(this.chosen_coors.x),
+                        y: Math.round(this.chosen_coors.y)
                     }
+                });
+
+                if (reply == "yes") {
+                    this.log("yes")
+                    this.exchanging = true;
+                } else {
+                    this.log("refused")
+                    this.exchanging = false;
+                    this.current_intention = undefined;
+                    this.chosen_coors = undefined;
+                    this.chosen_one = undefined;
                 }
+            
             }
         }
     }

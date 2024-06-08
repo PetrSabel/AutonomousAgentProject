@@ -81,6 +81,7 @@ export function Astar(map: Tile[][], map_size: [number, number], agent_x: number
 
 
     // TODO: check condition 
+    // console.log("CURRENT PLAN IS ", plan)
     const goal_free = map[final_x][final_y]?.agentID == null;
     if (plan.length > 0 && goal(map[final_x][final_y]) && goal_free) {
         return [plan, [final_x, final_y]];
@@ -88,4 +89,3 @@ export function Astar(map: Tile[][], map_size: [number, number], agent_x: number
         return [undefined, [final_x, final_y]]
     }
 }
-// Note: name "god" is quite powerful

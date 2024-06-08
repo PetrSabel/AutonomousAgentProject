@@ -8,33 +8,26 @@ import { MultiAgent } from "../MultiAgent/agent.js";
 export async function multiplan(agent: MultiAgent, goal: string, for_cache: boolean = false, position?: Point)
                                 : Promise<[Action[] | undefined, Action[] | undefined]> {
 
-
-    agent.log("MULTIPLAN", agent.agents)
+    let agents_copy = structuredClone(agent.agents);
     /** BeliefSet */
     const myBeliefset = new Beliefset();
     // My info
     myBeliefset.declare("me i")
-    myBeliefset.undeclare("scored i")
+    myBeliefset.declare("ally i")
+    // myBeliefset.declare("= (total-cost) 0") // Not working
+    myBeliefset.undeclare("scored")
+
     // Friends info
     if (agent.friends) {
         for (let f of agent.friends) {
             let tmp_f = "f_" + f;
             myBeliefset.declare("friend " + tmp_f)
-            myBeliefset.undeclare("scored " + tmp_f)
         }
     }
 
     let real_goal = goal;
     if (goal === "scored i") {
-        if (agent.friends.length > 0) {
-            real_goal = "or (scored i)"
-            for (let f of agent.friends) {
-                let tmp_f = "f_" + f;
-                real_goal += " (scored " + tmp_f + ")" 
-            }
-        } else {
-            real_goal = "scored i";
-        }
+        real_goal = "scored";
         
     }
 
@@ -65,7 +58,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
                     myBeliefset.declare("spawn " + t)
                 }
                 // Other agents positions
-                if (tile.agentID && !for_cache) {
+                if (tile.agentID != undefined && tile.agentID != agent.id && !for_cache) {
                     // agent.log("TILE IS OCCUPIED", t, tile.agentID)
                     myBeliefset.undeclare("free " + t)
                 } else {
@@ -116,7 +109,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
     let problem_string = problem.toPddlString()
 
     /** Domain */
-    const DOMAIN_STRING: string = readFileSync( MULTI_DOMAIN_PATH, 'utf8');
+    const DOMAIN_STRING: string = readFileSync(MULTI_DOMAIN_PATH, 'utf8');
     
     /** Solve */
     let plan: any = undefined;
@@ -124,9 +117,10 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
     try {
         plan = await onlineSolver(DOMAIN_STRING, problem_string);
         problem.saveToFile() // DEBUG
-        agent.log("SAVED", agent.agents)
+        agent.log("SAVED", plan);
 
     } catch(e) {
+        agent.chosen_coors = undefined;
         console.error("Solver ERROR", e)
     }
     // console.timeEnd("solve " + t + goal)
@@ -147,6 +141,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
                 case "SYNCH": {
                     if (a.args[0]) {
                         agent.chosen_one = a.args[0].toLowerCase().slice(2);
+                        agent.chosen_coors = agents_copy.get(agent.chosen_one);
                         moves.push("synch");
                     } else {
                         throw new Error("Synchronization with nobody");
@@ -157,8 +152,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
 
                 case "EXCHANGE": {
                     moves.push("exchange");
-                    friend_moves.push("exchange");
-
+                    friend_moves.push("pickup");
                     break;
                 };
 
@@ -194,10 +188,11 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
 
     } else {
         agent.log("IMPOSSIBLE INTENTION", goal);
+        agent.chosen_coors = undefined;
         // problem.saveToFile();
         return [undefined, undefined];
     }
 
-    agent.log("PLAN", moves);
+    // agent.log("PLAN", moves);
     return [moves, friend_moves];
 }

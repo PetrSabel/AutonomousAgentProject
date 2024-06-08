@@ -1,13 +1,12 @@
-;; domain file: domain-deliveroo.pddl
+;; domain file: domain-multi.pddl
 (define (domain default)
-    (:requirements :strips)
+    (:requirements :strips :disjunctive-preconditions :negative-preconditions) ; :numeric-fluents
     (:predicates
-        (agent ?a)
         (me ?a)
         (friend ?a)
         (ally ?f)
         (carry ?me)
-        (scored ?me) ;; todo: change with boolean var
+        (scored)
         
         (tile ?t)
         (delivery ?t)
@@ -22,11 +21,14 @@
         (at ?agent ?tile)
     )
     
+    (:functions
+        (total-cost)
+    )
+    
     (:action right
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (ally ?me))
-            ;;(me ?me)
+            (ally ?me)
             (at ?me ?from)
             (right ?from ?to)
             (free ?to)
@@ -36,14 +38,14 @@
 			(not (at ?me ?from))
             (not (free ?to))
             (free ?from)
+            ; (increase (total-cost) 1)
         )
     )
 
     (:action left
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (ally ?me))
-            ;;(me ?me)
+            (ally ?me)
             (at ?me ?from)
             (left ?from ?to)
             (free ?to)
@@ -53,14 +55,14 @@
 			(not (at ?me ?from))
             (not (free ?to))
             (free ?from)
+            ; (increase (total-cost) 1)
         )
     )
 
     (:action up
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (ally ?me))
-            ;;(me ?me)
+            (ally ?me)
             (at ?me ?from)
             (up ?from ?to)
             (free ?to)
@@ -70,14 +72,14 @@
 			(not (at ?me ?from))
             (not (free ?to))
             (free ?from)
+            ; (increase (total-cost) 1)
         )
     )
 
     (:action down
         :parameters (?me ?from ?to)
         :precondition (and
-            (or (me ?me) (ally ?me))
-            ;;(me ?me)
+            (ally ?me)
             (at ?me ?from)
             (down ?from ?to)
             (free ?to)
@@ -87,6 +89,7 @@
 			(not (at ?me ?from))
             (not (free ?to))
             (free ?from)
+            ; (increase (total-cost) 1)
         )
     )
 
@@ -96,8 +99,7 @@
     (:action deliver
         :parameters (?me ?pos)
         :precondition (and
-            (or (me ?me) (ally ?me))
-            ;;(me ?me)
+            (ally ?me)
             (tile ?pos)
             (at ?me ?pos)
             (carry ?me)
@@ -105,15 +107,14 @@
         )
         :effect (and
             (not (carry ?me))
-            (scored ?me)
+            (scored)
         )
     )
 
     (:action pickup
         :parameters (?me ?pos)
         :precondition (and
-            (or (me ?me) (ally ?me))
-            ;;(me ?me)
+            (ally ?me)
             (tile ?pos)
             (at ?me ?pos)
             (withparcel ?pos)

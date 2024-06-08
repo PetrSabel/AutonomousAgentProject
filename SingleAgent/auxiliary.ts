@@ -237,7 +237,7 @@ async function plan_intention(agent: Agent, desire: Desire,
                     score = reward / DELIVERY_WEIGHT;
                 }
 
-                // console.log("DELIVER INTENTION", score, reward, loss)
+                agent.log("DELIVER INTENTION", score)
             
             } else {
                 score = 0

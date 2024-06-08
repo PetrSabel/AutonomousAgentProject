@@ -1,13 +1,23 @@
 import { GREETING, MultiAgent } from "../MultiAgent/agent.js";
 import { Intention } from "../SingleAgent/intention.js";
 import { update_agents_beliefs, update_parcels_beliefs } from "../SingleAgent/socket.js";
-import { AgentDesciption, Messages, ParcelInfo } from "../types.js";
+import { AgentDesciption, Messages, ParcelInfo, Plan } from "../types.js";
 
 
 export { set_communication_listeners, set_multiagent_listeners }
 
+function execute_passed_plan(agent: MultiAgent, plan: Plan, id: string, reply: any): Promise<void> {
+    // Change intention
+    let intention = agent.createIntention({description: "deliver", tries_number: 0})
+    intention.currentPlan = plan;
+    agent.exchanging = true
+
+    // Start executing 
+    return agent.executeIntention(intention);
+}
+
 function set_communication_listeners(socket: any, agent: MultiAgent) {
-    socket.on("msg", (id: string, name: string, msg: Messages, reply?: any) => {
+    socket.on("msg", async (id: string, name: string, msg: Messages, reply?: any) => {
         // Ignore self messages
         if (id === agent.id) {
             return;
@@ -22,7 +32,7 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
         }
 
         // New friend with same name 
-        if (msg.type === "greeting" && msg.content === GREETING && name === agent.name) {
+        if (msg.type === "greeting" && msg.content === GREETING) {// && name.slice(0, -2) === agent.name.slice(0, -2)
             if (!agent.friends.includes(id)) {
                 agent.friends.push(id)
                 
@@ -58,42 +68,56 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
                 };
 
                 case "plan": {
-                    agent.log('OK');
+                    agent.log('Received plan', msg.content, 'from ', id);
+                    agent.log('Im at', agent.get_coor());
                     if (reply) {
-                        if (msg.content.x == agent.x && msg.content.y == agent.y) {
-                            try {
-                                // Change intention
-                                let intention = new Intention({description: "deliver", tries_number: 0})
-                                intention.currentPlan = msg.content.plan;
-                                agent.exchanging = true
-                                reply("yes");
-
-                                // Start executing 
-                                agent.executeIntention(intention)
-                                    .then(() => {
-                                        agent.exchanging = false
-                                        agent.say(id, {
-                                            type: "done"
-                                        })
-                                    })
-                                    .catch(() => {
-                                        agent.exchanging = false;
-                                        agent.say(id, {
-                                            type: "failure"
-                                        })
-                                    })
-
-                            } catch (e) {
-                                try{
-                                    reply("no")
-                                } catch {
-                                    agent.log("REPLY fail")
+                        try {
+                            if (msg.content.x == agent.x && msg.content.y == agent.y) {
+                                agent.reset()
+                                agent.chosen_one = id;
+                                
+                                // If you should wait => reply then execute
+                                if (msg.content.plan != undefined && msg.content.plan[0] != "wait") {
+                                    reply("yes")
+                                    await agent.timer(50);
                                 }
-                                agent.log("ERROR DURING SYNCH", e, reply)
+                                
+                                execute_passed_plan(agent, msg.content.plan, id, reply).then(() => {
+                                    agent.exchanging = false
+                                    agent.say(id, {
+                                        type: "done"
+                                    })
+                                })
+                                .catch(() => {
+                                    agent.exchanging = false;
+                                    agent.say(id, {
+                                        type: "failure"
+                                    })
+                                })
+                                reply("yes");
+                                
+
+                            } else {
+                                agent.log("Failed synch because of coordinates")
+                                reply("refused");
+
+                                // Wait a bit 
+                                agent.log("ASKED TO STOP");
+                                agent.stop()
+                                await agent.timer(5000);
+                                if (agent.stopped) {
+                                    agent.reset();
+                                }
+                                return; 
+
+                            } 
+                        } catch (e) {
+                            try{
+                                reply("no")
+                            } catch {
+                                agent.log("REPLY fail")
                             }
-                        } else {
-                            reply("wrong coors")
-                            agent.log("Failed synch because of coordinates")
+                            agent.log("ERROR DURING SYNCH", e, reply)
                         }
                     }
                     break;
@@ -103,6 +127,19 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
                 case "done": {
                     agent.exchanging = false;
                     agent.current_intention = undefined;
+                    agent.waiting = false;
+                    agent.chosen_one = undefined;
+                    agent.chosen_coors = undefined
+                    break;
+                };
+
+                case "unwait": {
+                    agent.waiting = false;
+                    break;
+                };
+
+                case "wait": {
+                    agent.exchanging = true;
                     break;
                 }
 
@@ -120,8 +157,6 @@ function set_multiagent_listeners(socket: any, agent: MultiAgent) {
     // Obtain my current information
     socket.on("you", (me: AgentDesciption) => {
         // Update position
-        // TODO: better check if predicted position is same to control plan execution
-    
         agent.x = me.x 
         agent.y = me.y 
 

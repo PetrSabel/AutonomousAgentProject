@@ -11,6 +11,7 @@ export class Intention {
     // secondPlan?: Plan  
     // Estimated profit of executing this intention
     executing: boolean
+    ignoring: boolean
     planning: boolean // TODO: idea is to compute one step for the most 
                                 // convenient Intention (usign priority queue)
                                 // and if it achieves the goal execute it
@@ -21,13 +22,14 @@ export class Intention {
     x?: number 
     y?: number
 
-    constructor(desire: Desire) {
+    constructor(desire: Desire, ignoring: boolean = false) {
         this.desire = desire
         // TODO: suddivide intention in subintentions
         this.executing = false;
         
         // this.secondPlan = undefined 
         this.planning = false 
+        this.ignoring = ignoring
     }
 
     async compute_plan(agent: Agent, 
@@ -67,7 +69,7 @@ export class Intention {
             // Remove executed action
             this.currentPlan.shift();
         } catch(e) {
-            agent.log("ACTION BLOCKED", action)
+            agent.log("ACTION BLOCKED", action, e);
             // TODO: Try to solve the problem
             // if (this.planB) {
                 // Replan failed

@@ -13,8 +13,6 @@ type EmptyTile = null;
 
 type Tile = PassableTile | EmptyTile;
 
-// TODO: implement classes and not only types
-
 // Information from sockets
 type ParcelInfo = {
     id: string,
@@ -30,7 +28,6 @@ type TileInfo = {
     delivery: boolean,
     parcelSpawner: boolean,
 };
-// TODO: move to see spawners
 
 type AgentDesciption = {
     id: string,
@@ -39,7 +36,6 @@ type AgentDesciption = {
     y: number, 
     score: number,
 };
-
 
 // Parcel placed on map
 type Parcel = {
@@ -94,6 +90,10 @@ type Messages = {
     type: "failure"
 } | {
     type: "done"
+} | {
+    type: "unwait"
+} | {
+    type: "wait"
 }
 
 type Point = { x: number, y: number };

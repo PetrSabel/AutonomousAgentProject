@@ -5,7 +5,6 @@ import { Action, Point } from "../types.js";
 import { DOMAIN_PATH } from "../config.js";
 
 export async function plan(agent: Agent, goal: string, for_cache: boolean = false, position?: Point): Promise<Action[] | undefined> {
-    
     /** BeliefSet */
     const myBeliefset = agent.get_beliefset(goal, for_cache, position);
 
@@ -52,6 +51,5 @@ export async function plan(agent: Agent, goal: string, for_cache: boolean = fals
         return undefined;
     }
 
-    agent.log("PLAN", moves);
     return moves;
 }
