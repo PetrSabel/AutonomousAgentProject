@@ -27,7 +27,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
 
     let real_goal = goal;
     if (goal === "scored i") {
-        real_goal = "scored";
+        real_goal = "and (scored) (exchanged) (picked)";
         
     }
 
@@ -116,7 +116,7 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
     // console.time("solve " + t +  goal)
     try {
         plan = await onlineSolver(DOMAIN_STRING, problem_string);
-        problem.saveToFile() // DEBUG
+        // problem.saveToFile() // DEBUG
         agent.log("SAVED", plan);
 
     } catch(e) {

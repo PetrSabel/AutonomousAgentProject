@@ -8,7 +8,7 @@ export { set_communication_listeners, set_multiagent_listeners }
 
 function execute_passed_plan(agent: MultiAgent, plan: Plan, id: string, reply: any): Promise<void> {
     // Change intention
-    let intention = agent.createIntention({description: "deliver", tries_number: 0})
+    let intention = agent.createIntention({description: "deliver"})
     intention.currentPlan = plan;
     agent.exchanging = true
 
@@ -169,12 +169,10 @@ function set_multiagent_listeners(socket: any, agent: MultiAgent) {
     });
 
     // Update events
+
     // Agent is notified when see some agent
-    // TODO: update map information
-    // TODO: try to predict moves
     socket.on("agents sensing", (agents: AgentDesciption[]) => {
         update_agents_beliefs(agent, agents)
-        // agent.log("Sharing agents")
         // Communicate to friends
         for (let friend of agent.friends) { 
             agent.say(friend, {
@@ -185,10 +183,8 @@ function set_multiagent_listeners(socket: any, agent: MultiAgent) {
     });
 
     // Agent is notified when new parcel appears or reward changes
-    // TODO: update information, no override
     socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
         update_parcels_beliefs(agent, parcels)
-        // agent.log("Sharing parcels")
         // Communicate to friends
         for (let friend of agent.friends) { 
             agent.say(friend, {

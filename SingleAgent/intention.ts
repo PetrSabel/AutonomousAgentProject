@@ -1,34 +1,23 @@
 import { Action, Desire, Plan, Point } from "../types";
-import { Agent } from "./agent"
+import { Agent } from "./agent.js"
 import { plan_intention } from "./auxiliary.js";
 
-// TODO: add time/tries spent for doing a task (to avoid forward-backward giggling)
 
 export class Intention {
     // The associated desire
-    desire: Desire 
-    // Optional plan in case of failure
-    // secondPlan?: Plan  
-    // Estimated profit of executing this intention
+    desire: Desire
     executing: boolean
     ignoring: boolean
-    planning: boolean // TODO: idea is to compute one step for the most 
-                                // convenient Intention (usign priority queue)
-                                // and if it achieves the goal execute it
 
     currentPlan?: Plan
-    planB?: Plan 
     cost?: number
+    // Final position after executing
     x?: number 
     y?: number
 
     constructor(desire: Desire, ignoring: boolean = false) {
         this.desire = desire
-        // TODO: suddivide intention in subintentions
-        this.executing = false;
-        
-        // this.secondPlan = undefined 
-        this.planning = false 
+        this.executing = false
         this.ignoring = ignoring
     }
 
@@ -46,12 +35,7 @@ export class Intention {
         }
     }
 
-    async compute_planB(agent: Agent,
-        planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>) {
-        let _cost: number;
-        [this.planB, _cost, [this.x, this.y]] = await plan_intention(agent, this.desire, planner);
-    }
-
+    // Does one action from plan 
     async step(agent: Agent) {
         if (!this.executing) {
             this.executing = true
@@ -66,22 +50,11 @@ export class Intention {
         try {
             await agent.execute_action(action);
 
-            // Remove executed action
+            // Removes executed action
             this.currentPlan.shift();
         } catch(e) {
             agent.log("ACTION BLOCKED", action, e);
-            // TODO: Try to solve the problem
-            // if (this.planB) {
-                // Replan failed
             agent.blocked = true;
-            // } else {
-            //     // Try to replan
-            //     await this.compute_planB(agent);
-            //     console.log("PLANB", this.planB, "for", this.desire)
-            //     if (this.planB) {
-            //         this.currentPlan = this.planB.slice();
-            //     }
-            // }
             return;
         }
     }
@@ -92,32 +65,24 @@ export class Intention {
         }
     }
 
-    // async replan(agent: Agent) {
-    //     [this.secondPlan, this.cost] = plan(agent, this.desire)
-    // }
-
-    // planB() {
-    //     if (this.secondPlan) {
-    //         this.currentPlan = this.secondPlan
-    //     }
-    // }
-
-    estimateProfit(): number {
-        return this.cost;
+    estimateProfit(agent: Agent): number {
+        if (this.cost != undefined) {
+            return this.cost;
+        } else {
+            switch (this.desire.description) {
+                case "explore": {
+                    return 1;
+                };
+                case "deliver": {
+                    return 10_000;
+                };
+                case "exchange": {
+                    return -1;
+                };
+                case "pickup": {
+                    return this.desire.parcel.reward - ( Math.abs(agent.x - this.desire.parcel.x) + Math.abs(agent.y - this.desire.parcel.y) );
+                }
+            }
+        }
     }
 }
-
-// Desire possibilities: 'pick_up', 'explore', 'deliver'
-//      pick_up => Intention: go + Intention: pickup
-//      expore => Intention: random_go (but where? randomly?)
-//      deliver => Intention: go + Intention: putdown
-// new, remove
-
-// Intention: go, pickup, putdown
-//      random_go
-//      go => plan + execute
-//      pickup => emit pickup
-//      putdown => emit putdown
-// Each intention has a cost, we choose the best one.
-// We can also merge intentions, to achive better combined intention (score <= score1 + score2)
-// Start, stop, merge, finish, replan

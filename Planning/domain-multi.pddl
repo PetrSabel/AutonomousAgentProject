@@ -7,6 +7,8 @@
         (ally ?f)
         (carry ?me)
         (scored)
+        (exchanged)
+        (picked)
         
         (tile ?t)
         (delivery ?t)
@@ -21,9 +23,9 @@
         (at ?agent ?tile)
     )
     
-    (:functions
-        (total-cost)
-    )
+    ; (:functions
+    ;     (total-cost)
+    ; )
     
     (:action right
         :parameters (?me ?from ?to)
@@ -100,6 +102,7 @@
         :parameters (?me ?pos)
         :precondition (and
             (ally ?me)
+            (not (me ?me))
             (tile ?pos)
             (at ?me ?pos)
             (carry ?me)
@@ -112,15 +115,17 @@
     )
 
     (:action pickup
-        :parameters (?me ?pos)
+        :parameters (?f ?pos)
         :precondition (and
-            (ally ?me)
+            (ally ?f)
+            (not (me ?f))
             (tile ?pos)
-            (at ?me ?pos)
+            (at ?f ?pos)
             (withparcel ?pos)
         )
         :effect (and
-            (carry ?me)
+            (carry ?f)
+            (picked)
             (not (withparcel ?pos))
         )
     )
@@ -143,6 +148,7 @@
         :effect (and 
             (not (carry ?me))
             (withparcel ?me_pos)
+            (exchanged)
         )
     )
     

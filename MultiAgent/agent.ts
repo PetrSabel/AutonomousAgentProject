@@ -1,8 +1,9 @@
-import { PriorityQueue } from "@datastructures-js/priority-queue";
+import { ICompare, PriorityQueue } from "@datastructures-js/priority-queue";
 import { Agent } from "../SingleAgent/agent.js";
 import { Intention } from "../SingleAgent/intention.js";
 import { Action, Messages, Plan, Point, Tile } from "../types";
 import { set_communication_listeners, set_multiagent_listeners } from "./socket.js";
+import { WAITING_TIME } from "../config.js";
 
 export const GREETING: string = "sdhjg2121jsdngjkdsn99837289njsdnjbkdsjnk";
 
@@ -75,7 +76,10 @@ export class MultiAgent extends Agent {
     }
 
     async execute_action(action: Action) {
-        this.log("ACTION", action)
+        this.log("ACTION", action);
+
+        await this.reactive_behavior();
+
         switch (action) {
             case "pickup": {
                 await this.pickup()
@@ -123,12 +127,19 @@ export class MultiAgent extends Agent {
 
     async wait() {
         this.waiting = true;
+        let start_time = Date.now();
         while (true && this.chosen_one != undefined) {        
             this.log("Waiting for ", this.chosen_one, "to finish")
             this.say(this.chosen_one, {type: "wait"})
             if (this.waiting) {
                 await new Promise(res => setTimeout(res, this.config.MOVEMENT_DURATION|| 500));
             } else {
+                break;
+            }
+
+            if (start_time + WAITING_TIME > Date.now()) {
+                this.log("WAITING TOO MUCH")
+                this.reset();
                 break;
             }
         }
@@ -179,6 +190,61 @@ export class MultiAgent extends Agent {
                 }
             
             }
+        }
+    }
+
+    getOptions(): Intention[] {
+        this.desires = [];
+        this.desires.length = 0;
+
+        this.desires.push({description: "explore"});
+        if (this.carry.length > 0) {
+            this.desires.push({description: "deliver"})
+        }
+        for(let parcel of this.parcels.values()) {
+            this.desires.push({
+                description:"pickup",
+                parcel: parcel
+            })
+        }
+
+        let res: Array<Intention> = new Array;
+        for (let desire of this.desires) {
+            let intention = this.createIntention(desire);
+            res.push(intention)
+        }
+
+        const better_intention: ICompare<Intention> = (a: Intention, b: Intention) => {
+            let a_cost = a.estimateProfit(this);
+            let b_cost = b.estimateProfit(this);
+            if (a_cost == undefined) a_cost = -1;
+            if (b_cost == undefined) b_cost = -1;
+
+            return a_cost < b_cost ? 1 : -1;
+        };
+        let queue = new PriorityQueue(better_intention, res);
+
+        res = queue.toArray().slice(0, 2);
+        console.log("RES", res);
+
+        return res;
+    }
+
+    get_new_options(): Intention[] {
+        let res: Array<Intention> = new Array;
+        for (let desire of this.new_desires) {
+            let intention = this.createIntention(desire);
+
+            res.push(intention)
+        }
+        this.new_desires = [];
+        this.new_desires.length = 0;
+
+
+        if (res.length < 2) {
+            return res;
+        } else {
+            return [];
         }
     }
 }

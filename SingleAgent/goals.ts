@@ -9,7 +9,6 @@ const isParcel = (tile: Tile) => {
     }
 }
 
-// TODO: make something when my move is blocked
 const isDelivery = (tile: Tile) => {
     if (tile) {
         return tile.delivery

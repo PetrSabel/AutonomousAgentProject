@@ -7,38 +7,38 @@ import { FORGET_AFTER } from "../config.js";
 import { Beliefset } from "@unitn-asa/pddl-client";
 
 
-// TODO: declare function for each of agents actions (communication lacks)
-// TODO: idea is to bump into others when there are too many agents on the map (or maybe save agents for more time)
-// TODO: make all asyncronous and launch principal loop which should do all actions (when available)
+const dumb = true; // Specifies if agent should stop by pumping into others or by preventing it
+
 export class Agent {
+    // Mandatory information
     map: Tile[][];  // matrix[x,y] of Tiles
     map_size: [number, number];
+    id: string;
+    name: string;
+    socket: any;
+    // Configuration of the level
+    config: any;
+    // Function to compute plans
+    planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>
+
 
     // Current information
     #x: number;
     #y: number;
     score: number;
-    parcels: Map<string, ParcelInfo>; // TODO: split in 2 (real and expected)
+
+    // Beliefs 
+    parcels: Map<string, ParcelInfo>; 
     agents: Map<string, AgentDesciption>;
-    // TODO: store agents to predict moves
     carry: Parcel[];
-    carrying_reward: number; // Indicates how much reward can obtain now (if deliver)
 
-    id: string;
-    name: string; // TODO: add in config possibility to choose between different agents
-    socket: any;
-
-    time_to_move: number; // The time needed to execute a move
-    time_to_plan: number; // Expected time to plan next move (average)
     time_to_decay: number;
     last_deliver_time: number;
 
+    // Current agent state
     current_intention?: Intention 
     blocked: boolean 
     stopped: boolean
-
-    // Configuration of the level
-    config: any;
 
     dense_tiles: Array<Point>
     dense_visited: number
@@ -46,11 +46,10 @@ export class Agent {
     move_cost: number;
     dont_disturb: boolean;
 
-    // BDI
+    // Desires
     desires: Desire[]
     new_desires: Desire[]
 
-    planner: (agent: Agent, goal: "delivery" | Point, use_cache: boolean) => Promise<[Action[] | undefined, [number, number]]>
 
     constructor(name: string, id: string, map: Tile[][], map_size: [number, number], map_config: any, 
             x: number, y: number, socket: any, 
@@ -65,51 +64,45 @@ export class Agent {
         this.name = name;
         this.config = map_config;
         this.planner = planner
-
         this.socket = socket; 
+
         this.move_cost = this.config.MOVEMENT_DURATION/1000;
 
         // Initialize new run (supposing the agent does not know nothing)
         this.parcels = new Map();
         this.carry = [];
-        this.carrying_reward = 0;
         this.score = 0;
         this.agents = new Map();
-        // this.current_optimal_cost = 0.0; // The optimal cost executing an intention 
 
+        // Initial agent state
         this.dont_disturb = false; 
         this.stopped = false;
-
         this.last_deliver_time = Date.now();
-
-        // TODO: try to estimate them OR extract from map.config
-        this.time_to_move = 1000; // ms
-        this.time_to_plan = 1000; // ms
-
-        this.desires = [{description: "explore", tries_number: 0,}, {description: "deliver", tries_number: 0,}]
+        this.desires = [{description: "explore"}, {description: "deliver"}]
         this.new_desires = []
-
         this.current_intention= undefined;
         this.blocked = false;
-
-        this.log("Agent created!")
-
         this.dense_tiles = compute_spawn_tiles(this.map);
         this.dense_visited = 0
-        
-        const parcel_decay_time: string = this.config.PARCEL_DECADING_INTERVAL
 
+
+        this.log("Agent created!")
+        
+        // Sets function to decrease parcels values
+        const parcel_decay_time: string = this.config.PARCEL_DECADING_INTERVAL
         if (parcel_decay_time !== 'infinite') {
+            // Extract seconds from level configuration
             let decay = parcel_decay_time.replace(/\D/g, '');
             console.log("Decay", decay)
 
             let decay_time: number;
             try {
+                // Transforms into milliseconds
                 decay_time = 1000 * Number(decay);
             } catch {
                 decay_time = 1000;
             }
-            // Updates known parcels
+            // Updates known parcels periodically
             setInterval(() => {
                 // Decreases parcels' rewards
                 for (let parcel of this.parcels.values()) {
@@ -135,30 +128,31 @@ export class Agent {
         }
     }
 
+    // Coordinates are rounded because are used as indexes
     get x () {
         return Math.round(this.#x);
     }
-
     set x (x: number) {
         this.#x = x;
     }
-
     get y () {
         return Math.round(this.#y);
     }
-
     set y (y: number) {
         this.#y = y;
     }
 
+    // Prints messages with agent id (for logging)
     log(...args: any[]) {
         console.log("("+this.id+")", ...args)
     }
 
+    // Sets listeners to update beliefs 
     setListeners() {
         set_agent_listeners(this.socket, this);
     }
 
+    // Stops agent and reset intention
     reset() {
         this.current_intention = undefined;
         this.dont_disturb = false;
@@ -166,6 +160,7 @@ export class Agent {
         this.stopped = false;
     }
 
+    // Stop comletelly the agent (not moving)
     stop() {
         this.current_intention = undefined;
         this.dont_disturb = true;
@@ -173,36 +168,11 @@ export class Agent {
         this.stopped = true;
     }
 
+    // Launch agent
     start() {
         this.log("Launching agent!")
         this.setListeners()
         
-        // TODO: compute all possible plans
-        let i = 0;
-        let prom = []
-        for (let row of this.map) {
-            for (let tile of row) {
-                if (tile) {
-                    for (let row1 of this.map) {
-                        for (let tile1 of row1) {
-                            if (tile1 != undefined && (tile.spawnable && tile1.delivery)) {
-                                // Plan from tile to tile1
-                                // console.log("Posting", i)
-                                let goal = "at i t" + tile1.x + "_" + tile1.y;
-                                prom.push([goal, {x: tile.x, y: tile.y}]);
-                                i += 1
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Promise.all(prom).then(
-        //     () => console.log("FINISHED")
-        // )
-        // this.log("TO CACHE", prom.length)
-
         this.loop()
     }
 
@@ -214,10 +184,11 @@ export class Agent {
         }
     }
 
+    // Change current intention
     changeIntention(new_intention: Intention) {
         if (!this.dont_disturb) {
             if (this.current_intention) {
-                if (this.current_intention.estimateProfit() < new_intention.estimateProfit()) {
+                if (this.current_intention.estimateProfit(this) < new_intention.estimateProfit(this)) {
                     this.executeIntention(new_intention)
                 }
             } else {
@@ -226,26 +197,24 @@ export class Agent {
         }
     }
 
+    // Agent actions
+
     async pickup() {
         this.socket.emit( 'pickup', (parcels: Parcel[]) => {
-            // console.log("Picked up", this.map[this.x][this.y])
-            // console.log("HERE BUG", this.parcels)
+            // Move parcels from map to carry
             for (let parcel of parcels) {
                 this.carry.push(parcel);
                 this.remove_parcel(parcel.id)
-                // console.log("PARCEL PICKED", parcel)
             }
         } );
     }
 
     async putdown() {
-        await this.socket.emit( 'putdown', (parcel: any) => {
-            // console.log("Putted", parcel)
-            this.carry = [];
-        } );
+        await this.socket.emit( 'putdown' );
 
+        // Remove from beliefs
         for (const parcel of this.carry) {
-            this.remove_parcel(parcel.id)
+            this.remove_parcel(parcel.id);
         }
         this.carry = new Array(0)
 
@@ -275,9 +244,6 @@ export class Agent {
                 }
                 
                 case "wait": {
-                    // TODO: decide what to do
-                    // this.replan(agent)
-                    // agent.blocked = true 
                     break;
                 }
             
@@ -300,32 +266,23 @@ export class Agent {
     // Main loop
     async loop() {
         while (true) {
-            // console.log("------------------------------------------")
-            // console.error("New iteration")
-
             try {
+                // Get possible intentions
                 let options = this.getOptions()
-
-                // this.log("OPTIONS")
-                // for (let q of options) {
-                //     this.log(q)
-                // }
-
                 this.log("\n\nCOMPUTING", options.length ,"options.....")
+
+                // Compute plans for options
                 // console.time("-------------------------------")
                 await Promise.all(options.map(opt => opt.compute_plan(this, this.planner)));
                 // console.timeEnd("-------------------------------")
-                // await new Promise(res => setTimeout(res, 5000));
                 
+                // Remove impossible options and more
                 let queue = this.filterOptions(options)
 
-                // this.log("QUEUE")
-                // for (let q of queue.toArray()) {
-                //     this.log(q)
-                // }
-
+                // Take best option
                 let first = queue.pop();
                 if (first) {
+                    // Skip if there is alraeady an intention
                     if (this.current_intention != undefined && this.current_intention.executing == true) {
                         await new Promise(res => setTimeout(res, 100));
                     } else {
@@ -338,28 +295,23 @@ export class Agent {
                 this.log("Some error", e)
                 await new Promise(res => setTimeout(res, 100));
             }
-
-            // break;
-            // await new Promise(res => setTimeout(res, 5000));
         }
     }
 
-    // TODO: try to estimate the intention cost to ignore uninteresting ones
+    // Transforms desires into intentions
     getOptions(): Intention[] {
         this.desires = [];
         this.desires.length = 0;
 
-        this.desires.push({description: "explore", tries_number: 0,});
-        this.desires.push({description: "deliver", tries_number: 0,})
+        this.desires.push({description: "explore"});
+        this.desires.push({description: "deliver"})
         for(let parcel of this.parcels.values()) {
             this.desires.push({
                 description:"pickup",
-                parcel: parcel, 
-                tries_number: 0,
+                parcel: parcel
             })
         }
 
-        // let optimal_cost: number = EXPLORE_COST;
         let res: Array<Intention> = new Array;
         for (let desire of this.desires) {
             let intention = this.createIntention(desire);
@@ -370,6 +322,7 @@ export class Agent {
         return res;
     }
 
+    // Transforms desires appeared during movement into intentions
     get_new_options(): Intention[] {
         let res: Array<Intention> = new Array;
         for (let desire of this.new_desires) {
@@ -385,24 +338,10 @@ export class Agent {
 
     // Return ordered list of options
     filterOptions(options: Intention[]) {
-        // TODO: filter options based on some criteria
-        // this.log("UNFILTER")
-        // for (let o of options) {
-        //     this.log(o)
-        // }
-
         options = options.filter(option => option.currentPlan != undefined);
         options = options.filter(option => option.cost >= 0.0);
+        // Sorted queue
         let queue = new PriorityQueue((a: Intention, b: Intention) => a.cost > b.cost ? -1 : 1, options)
-        
-
-        for (let option of options) {
-            // queue.push(option)
-            if (option.desire.description == "deliver") {
-                // console.log("DELIVER COST = ", option.cost)
-            }
-            // TODO: consider to combine deliver with some pickup (if aligned)
-        }
 
         return queue;
     }
@@ -412,17 +351,19 @@ export class Agent {
             this.log("NOT EXECUTING because STOPPED")
             return;
         }
+        // Reset agent state 
         this.blocked = false 
         this.dont_disturb = ignoring;
         this.current_intention = intention;
         this.log("EXECUTING", intention.desire.description, intention.x, intention.y,
-                    "From", this.x, this.y, "SCORE", intention.cost, "\n\n+++++++++++++++")
+                    "From", this.x, this.y, "SCORE", intention.cost, intention.currentPlan, "\n\n+++++++++++++++")
 
         let reachable: boolean;
         do {
             await this.reactive_behavior();
 
-            if (false) { // this.new_desires.length > 0
+            // Check if need to replan
+            if (this.new_desires.length > 0 && !this.dont_disturb) {
                 this.log("NEW DESIRES FOUND")
                 
                 if (this.current_intention != undefined && this.current_intention.desire.description == "deliver") {
@@ -437,11 +378,12 @@ export class Agent {
     
                     let filtered = this.filterOptions(new_options)
     
+                    // If new intention is better, execute it
                     let first = filtered.pop()
                     if (first) {
                         if (this.current_intention == undefined) {
                             this.current_intention = first;
-                        } else if (first.estimateProfit() > this.current_intention.estimateProfit()) {
+                        } else if (first.estimateProfit(this) > this.current_intention.estimateProfit(this)) {
                             this.log("CHANGED")
                             this.current_intention = first 
                         } else {
@@ -451,10 +393,9 @@ export class Agent {
                 }
             }
             
-
+            // Do an action
             await this.current_intention.step(this);
 
-            const dumb = true;
             if (dumb) {
                 reachable = this.current_intention != undefined && this.current_intention.executing && !this.blocked;
             } else {
@@ -462,24 +403,27 @@ export class Agent {
             }
         } while (reachable)
 
+        // Reset agent 
         if (this.current_intention != undefined) {
             this.current_intention.stop()
             this.dont_disturb = false;
+            this.current_intention = undefined;
         }
 
         // Give a possibility to update beliefs (asynchronously)
         await new Promise(res => setTimeout(res, 50));
     }
 
+    // Waits some time
     async timer(ms: number) {
         await new Promise(res => setTimeout(res, ms));
     }
 
     async reactive_behavior() {
-        // Check if the tile has a parcel
         let x = Math.round(this.x)
         let y = Math.round(this.y)
 
+        // Check if the tile has a parcel
         if (this.map[x][y]?.parcel) {
             await this.pickup();
         }
@@ -490,7 +434,7 @@ export class Agent {
         }
     }
 
-    // Returns whether the destination is accesible
+    // Returns whether the destination is reachable
     check_reachable(): boolean {
         let intention = this.current_intention;
         if (intention) {
@@ -531,8 +475,8 @@ export class Agent {
         }
     }
 
+    // Remove parcels from beliefs 
     remove_parcel(parcel_id: string) {
-        // TODO: Remove from agent.carry
         let parcel = this.parcels.get(parcel_id)
         if (parcel) {
             let x = Math.round(parcel.x)
@@ -543,7 +487,7 @@ export class Agent {
     }
 
     update_parcel(parcel: ParcelInfo) {
-        // If transported remove
+        // If transported, remove
         if (parcel.carriedBy) {
             if (this.parcels.has(parcel.id)) {
                 this.remove_parcel(parcel.id);
@@ -565,7 +509,7 @@ export class Agent {
         }
     }
 
-    // Checks whether the current intention is still valid
+    // Checks whether the current intention is still valid (no agent blocks)
     simulate_intention(): boolean {
         if (this.current_intention) {
             let x = Math.round(this.x);
@@ -607,6 +551,7 @@ export class Agent {
         }
     }
 
+    // Create PDDL BeliefSet
     get_beliefset(goal: string, for_cache: boolean, position?: Point) {
         const myBeliefset = new Beliefset();
         // My info
@@ -674,7 +619,6 @@ export class Agent {
         // Forget an agent if no more visible
         if (Math.abs(my_x - x) + Math.abs(my_y - y) > vision_distance) {
             if (this.map[x][y]!.agentID === a.id) {
-                // this.log("FORGETTING", a)
                 this.delete_agent(a);
             }
         } else if (this.map[x][y]!.agentID == null) {
@@ -687,6 +631,7 @@ export class Agent {
         }
     }
 
+    // Removes immediatelly an agent from beliefs
     delete_agent(a: AgentDesciption) {
         if (this.agents.has(a.id)) {
 
@@ -732,22 +677,8 @@ export class Agent {
         }
     }
 
+    // Returns current position
     get_coor(): Point {
         return { x:Math.round(this.x), y: Math.round(this.y) };
     }
-
-    // TODO: if action is blocked try to replan, maybe add a second plan to each intention
-    //      OR save the search variables somewhere
-    //      maybe requires to store the current intention
 }
-
-// BDI => Beliefs, Desires, Intentions
-
-// Belief = what the agent believes (map, parcel positions, other agents positions and actions, delivery positions)
-//     Belief problem: may has data inconsistency => 2 databases (real and expected)
-//         Strategies: static (stay there forever), annihilation (exists only if I see it), prediction
-// The agent is executing a plan, sees an obstacle => re-plan, wait until changes back => wait until re-plan
-
-// Desires = goals the agent want to achieve (deliver packs, get packs, explore map)
-
-// Intention = what the agent currently is doing (move to get a new pack, deliver packs, explore (no other option), planning, replan)

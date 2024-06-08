@@ -1,12 +1,10 @@
 ;; domain file: domain-deliveroo.pddl
 (define (domain default)
-    (:requirements :strips)
+    (:requirements :strips :negative-preconditions)
     (:predicates
-        (agent ?a)
         (me ?a)
-        (friend ?a)
         (carry ?me)
-        (scored ?me) ;; todo: change with boolean var
+        (scored ?me) 
         
         (tile ?t)
         (delivery ?t)

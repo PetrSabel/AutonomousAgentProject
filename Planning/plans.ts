@@ -12,8 +12,7 @@ export async function plan(agent: Agent, goal: string, for_cache: boolean = fals
     let objects = myBeliefset.objects;
 
     // Problem 
-    let problem = new PddlProblem("first", objects.join("\n  "), init_situation, goal)
-    // problem.saveToFile() // DEBUG
+    let problem = new PddlProblem("first", objects.join("\n  "), init_situation, goal);
 
     let problem_string = problem.toPddlString()
 

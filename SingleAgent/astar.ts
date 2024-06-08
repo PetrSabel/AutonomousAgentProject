@@ -7,8 +7,6 @@ export type State = {
     moves: Action[],
 };
 
-// TODO: decide how to manage situations when other agent block me
-// TODO: get estimate function that can help to ignore too distant/unreachable parcels (saving time)
 export function Astar(map: Tile[][], map_size: [number, number], agent_x: number, agent_y: number, 
     h: ICompare<State>, goal: (tile: Tile) => boolean, goal_tile?: [number, number]
 ): [Action[] | undefined, [number, number]] {
@@ -16,14 +14,8 @@ export function Astar(map: Tile[][], map_size: [number, number], agent_x: number
     let final_x = Math.round(agent_x);
     let final_y = Math.round(agent_y);
 
-    // Try to reach it
+    // Sorted queue
     let q: PriorityQueue<State> = new PriorityQueue(h);
-    // if (goal_tile) {
-    //     // Start to search from the goal, supposing to arrive at the agent
-    //     q.enqueue({x: goal_tile[0], y: goal_tile[1], moves: []})
-    // }
-    // TODO: inverse each action
-
     q.enqueue({x: Math.round(agent_x), y: Math.round(agent_y), moves: []});
     let visited: Array<[x:number, y:number]> = [];
 
@@ -44,24 +36,18 @@ export function Astar(map: Tile[][], map_size: [number, number], agent_x: number
         }
         let tile = map[x][y];
 
-        // console.log("TILE", tile, x, y)
         if (!tile) {
             continue
         } else if (tile.agentID) {
-            // Agent blocks the path
-            // moves.push("wait")  
-            
             continue; // Ignore the tile if occupied  
         } else if (goal(tile) && tile.agentID == null) { 
             // Stops when find the first accepted block
-            // console.log("Want to arrive to", x, y, tile, "from", agent_x, agent_y)
             plan = moves;
             final_x = x; 
             final_y = y;
             break;
-        } else {
 
-                
+        } else {
 
             if (x > 0) {
                 q.enqueue({x: x-1, y, moves:[...moves, 'left']});
@@ -79,9 +65,6 @@ export function Astar(map: Tile[][], map_size: [number, number], agent_x: number
         }
     }
 
-
-    // TODO: check condition 
-    // console.log("CURRENT PLAN IS ", plan)
     const goal_free = map[final_x][final_y]?.agentID == null;
     if (plan.length > 0 && goal(map[final_x][final_y]) && goal_free) {
         return [plan, [final_x, final_y]];

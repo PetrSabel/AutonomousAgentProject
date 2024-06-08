@@ -7,9 +7,11 @@ const BETTER_OPTION: number = -1;
 const WORSE_OPTION: number = 1;
 
 const nearestTiles: ICompare<State> = (a: State, b: State) => {
+    // Plans lengths
     let dist_a = a.moves.length 
     let dist_b = b.moves.length 
     
+    // Order them
     return dist_a < dist_b ? BETTER_OPTION : WORSE_OPTION;
 };
 
