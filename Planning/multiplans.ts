@@ -59,7 +59,6 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
                 }
                 // Other agents positions
                 if (tile.agentID != undefined && tile.agentID != agent.id && !for_cache) {
-                    // agent.log("TILE IS OCCUPIED", t, tile.agentID)
                     myBeliefset.undeclare("free " + t)
                 } else {
                     myBeliefset.declare("free " + t)
@@ -134,8 +133,9 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
         for (let a of plan) {
             switch (a.action) {
                 case "DELIVER": {
-                    moves.push("putdown");
-                    friend_moves.push("wait");
+                    // Assuming only ally can deliver 
+                    friend_moves.push("putdown");
+                    moves.push("wait");
                     break;
                 };
                 case "SYNCH": {
@@ -183,8 +183,6 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
             }
         }
 
-        moves.push("wait")
-        friend_moves.push("wait")
 
     } else {
         agent.log("IMPOSSIBLE INTENTION", goal);
@@ -193,6 +191,6 @@ export async function multiplan(agent: MultiAgent, goal: string, for_cache: bool
         return [undefined, undefined];
     }
 
-    // agent.log("PLAN", moves);
-    return [moves, friend_moves];
+    agent.log("FROM SAVED PLAN", moves, friend_moves);
+    return [moves.slice(), friend_moves.slice()];
 }

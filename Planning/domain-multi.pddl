@@ -94,8 +94,6 @@
             ; (increase (total-cost) 1)
         )
     )
-
-    ;; Just put down 
     
     ;; Putdown and score points 
     (:action deliver

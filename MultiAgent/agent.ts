@@ -5,6 +5,7 @@ import { Action, Messages, Plan, Point, Tile } from "../types";
 import { set_communication_listeners, set_multiagent_listeners } from "./socket.js";
 import { WAITING_TIME } from "../config.js";
 
+// Key string to recognize allies
 export const GREETING: string = "sdhjg2121jsdngjkdsn99837289njsdnjbkdsjnk";
 
 export class MultiAgent extends Agent {
@@ -46,12 +47,12 @@ export class MultiAgent extends Agent {
         })
     }
 
-    // Return ordered list of options
+    // Returns ordered list of options
     filterOptions(options: Intention[]) {
         options = options.filter(option => option.currentPlan != undefined)
         options = options.filter(option => option.cost >= 0.0)
 
-        // Penalize options close to another ally
+        // Penalizes options close to another ally
         function cost(agent: MultiAgent, intention: Intention) {
             let ally_dist: number = 100_000;
             let my_dist: number = 0;
@@ -120,7 +121,7 @@ export class MultiAgent extends Agent {
         }
 
         if (this.exchanging && this.chosen_one != undefined) {
-            // Notify that you have finished the action
+            // Notifies that agent has finished the action
             this.say(this.chosen_one, {type: "unwait"})
         }
     }
@@ -193,6 +194,7 @@ export class MultiAgent extends Agent {
         }
     }
 
+    // Modified version to get the best two options
     getOptions(): Intention[] {
         this.desires = [];
         this.desires.length = 0;
@@ -225,11 +227,11 @@ export class MultiAgent extends Agent {
         let queue = new PriorityQueue(better_intention, res);
 
         res = queue.toArray().slice(0, 2);
-        console.log("RES", res);
 
         return res;
     }
 
+    // Modified version: consider new intention if there are few
     get_new_options(): Intention[] {
         let res: Array<Intention> = new Array;
         for (let desire of this.new_desires) {

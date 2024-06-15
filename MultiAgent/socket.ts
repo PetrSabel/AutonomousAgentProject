@@ -1,5 +1,4 @@
 import { GREETING, MultiAgent } from "../MultiAgent/agent.js";
-import { Intention } from "../SingleAgent/intention.js";
 import { update_agents_beliefs, update_parcels_beliefs } from "../SingleAgent/socket.js";
 import { AgentDesciption, Messages, ParcelInfo, Plan } from "../types.js";
 
@@ -23,16 +22,13 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
             return;
         }
         
-        // agent.log("new msg received from", name+'(' + id + '):', msg);
-        
         // Ignore wrong messages
         if (msg == undefined || msg.type == undefined) {
-            // TODO: copy messages and send them around
             return;
         }
 
         // New friend with same name 
-        if (msg.type === "greeting" && msg.content === GREETING) {// && name.slice(0, -2) === agent.name.slice(0, -2)
+        if (msg.type === "greeting" && msg.content === GREETING && name.slice(0, -2) === agent.name.slice(0, -2)) { 
             if (!agent.friends.includes(id)) {
                 agent.friends.push(id)
                 
@@ -44,6 +40,7 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
             }
         }
         
+        // Processes meassages from friends
         if (agent.friends.includes(id)) {
             switch (msg.type) {
                 case "parcels": {
@@ -82,18 +79,19 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
                                     await agent.timer(50);
                                 }
                                 
-                                execute_passed_plan(agent, msg.content.plan, id, reply).then(() => {
-                                    agent.exchanging = false
-                                    agent.say(id, {
-                                        type: "done"
+                                execute_passed_plan(agent, msg.content.plan, id, reply)
+                                    .then(() => {
+                                        agent.exchanging = false
+                                        agent.say(id, {
+                                            type: "done"
+                                        })
                                     })
-                                })
-                                .catch(() => {
-                                    agent.exchanging = false;
-                                    agent.say(id, {
-                                        type: "failure"
+                                    .catch(() => {
+                                        agent.exchanging = false;
+                                        agent.say(id, {
+                                            type: "failure"
+                                        })
                                     })
-                                })
                                 reply("yes");
                                 
 
@@ -153,13 +151,15 @@ function set_communication_listeners(socket: any, agent: MultiAgent) {
 }
 
 function set_multiagent_listeners(socket: any, agent: MultiAgent) {
-    // Set new event handlers 
-    // Obtain my current information
+    // Sets new event handlers 
+
+    // Obtains my current information
     socket.on("you", (me: AgentDesciption) => {
-        // Update position
+        // Updates position
         agent.x = me.x 
         agent.y = me.y 
 
+        // Notifies friends about current position
         for (let friend of agent.friends) { 
             agent.say(friend, {
                 type: "friend",
@@ -173,7 +173,7 @@ function set_multiagent_listeners(socket: any, agent: MultiAgent) {
     // Agent is notified when see some agent
     socket.on("agents sensing", (agents: AgentDesciption[]) => {
         update_agents_beliefs(agent, agents)
-        // Communicate to friends
+        // Communicates to friends
         for (let friend of agent.friends) { 
             agent.say(friend, {
                 type: "agents",
@@ -185,7 +185,7 @@ function set_multiagent_listeners(socket: any, agent: MultiAgent) {
     // Agent is notified when new parcel appears or reward changes
     socket.on("parcels sensing", (parcels: ParcelInfo[]) => {
         update_parcels_beliefs(agent, parcels)
-        // Communicate to friends
+        // Communicates to friends
         for (let friend of agent.friends) { 
             agent.say(friend, {
                 type: "parcels",

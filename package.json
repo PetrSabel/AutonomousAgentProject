@@ -1,13 +1,14 @@
 {
   "name": "deliveroo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The \"Autonomous Software Agent\" project ",
   "main": "main.ts",
   "type":"module",
   "types": "./@types",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "PAAS_HOST=\"http://localhost:5001\" ts-node SingleAgent/main.ts"
+    "start": "PAAS_HOST=\"http://localhost:5001\" ts-node SingleAgent/main.ts",
+    "multi": "PAAS_HOST=\"http://localhost:5001\" ts-node MultiAgent/main.ts"
   },
   "author": "",
   "license": "ISC",

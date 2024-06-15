@@ -233,6 +233,8 @@ export class Agent {
 
     async execute_action(action: Action) {
         if (!this.stopped) {
+            await this.reactive_behavior();
+            
             switch (action) {
                 case "pickup": {
                     await this.pickup()
@@ -420,16 +422,16 @@ export class Agent {
     }
 
     async reactive_behavior() {
-        let x = Math.round(this.x)
-        let y = Math.round(this.y)
+        let x = this.x
+        let y = this.y
 
         // Check if the tile has a parcel
-        if (this.map[x][y]?.parcel) {
+        if (this.map[x][y] != undefined && this.map[x][y].parcel) {
             await this.pickup();
         }
 
         // Putdown if pass through delivery zone
-        if (this.map[x][y]?.delivery) {
+        if (this.map[x][y] != undefined && this.map[x][y].delivery) {
             await this.putdown()
         }
     }

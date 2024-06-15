@@ -3,10 +3,6 @@ import { DPPL_PLANNING, LOCAL_SERVER, default as config } from "../config.js"
 import { create_socket, map, map_config, map_size, personal_info } from "../SingleAgent/socket.js";
 import { plan_and_coors_astar, plan_and_coors_multipddl, plan_and_coors_pddl } from "../SingleAgent/auxiliary.js";
 
-// TODO: launch planner at the beginning from all tiles to each other and cache the results
-//      maybe more possible plans for the same one (in case of block) OR if blocked make a random move OR recompute (but difficult)
-//      4 plan for each direction blocked
-
 const host = LOCAL_SERVER? config.local.host : config.remote.host;
 
 const planner = DPPL_PLANNING ? plan_and_coors_multipddl : plan_and_coors_astar;
@@ -38,10 +34,7 @@ export function initialize_agent(socket: any) {
 }
 
 // Create multiple agents
-let i = 1;
 for (let agent_configuration of config.multi) {
-    //agent_configuration.name
     console.log("NAME", agent_configuration.name)
     initialize_agent(create_socket(host + "?name=" + agent_configuration.name, agent_configuration.token))
-    i += 1;
 }
