@@ -123,6 +123,10 @@ export class MultiAgent extends Agent {
         if (this.exchanging && this.chosen_one != undefined) {
             // Notifies that agent has finished the action
             this.say(this.chosen_one, {type: "unwait"})
+        } else if (this.exchanging) {
+            this.socket.emit('shout', {
+                type: "unwait"
+            })
         }
     }
 
